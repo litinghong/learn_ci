@@ -1,11 +1,5 @@
 ###################
-What is CodeIgniter test
-this file changed by leeth
-company:startgt
-create a branch
-Creating a new branch is quick AND simple.
-a new dev
-this file changed by leeth fix this but #bug issues 102
+What is CodeIgniter
 ###################
 
 CodeIgniter is an Application Development Framework - a toolkit - for people
@@ -17,7 +11,7 @@ you creatively focus on your project by minimizing the amount of code needed
 for a given task.
 
 *******************
-Release Information // bylee test: fix but
+Release Information
 *******************
 
 This repo contains in-development code for future releases. To download the
