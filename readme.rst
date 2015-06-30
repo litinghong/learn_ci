@@ -3,7 +3,7 @@ What is CodeIgniter test
 this file changed by leeth
 company:startgt
 create a branch
-Creating a new branch is quick & simple.
+Creating a new branch is quick AND simple.
 ###################
 
 CodeIgniter is an Application Development Framework - a toolkit - for people
