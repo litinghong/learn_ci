@@ -177,14 +177,15 @@ class Texas extends CI_Controller {
          * 方块 = 16  = 0001 0000
          *
          * 后四位按顺序表面牌值，并与前四位组合
-         * 黑桃 2 = 128 + 1 = 1000 0001
+         * 黑桃 2 = 128 + 1 = 1000 0010
+         * 1 与 ace 在检测顺子的情况下相等
          * 依此类推
          */
         $newPoker = array(
-            17,18,19,20,21,22,23,24,25,26,27,28,29,                 //方块 2 - A
-            33,34,35,36,37,38,39,40,41,42,43,44,45,                 //梅花 2 - A
-            65,66,67,68,69,70,71,72,73,74,75,76,77,                 //红桃 2 - A
-            129,130,131,132,133,134,135,136,137,138,139,140,141     //黑桃 2 - A
+            17,18,19,20,21,22,23,24,25,26,27,28,29,30,                 //方块 1 - A
+            33,34,35,36,37,38,39,40,41,42,43,44,45,46,                 //梅花 1 - A
+            65,66,67,68,69,70,71,72,73,74,75,76,77,78,                 //红桃 1 - A
+            129,130,131,132,133,134,135,136,137,138,139,140,141,142     //黑桃 1 - A
         );
 
         //随机生成庄家手中的牌序
@@ -309,10 +310,10 @@ class Texas extends CI_Controller {
         /**规则： 花色相同 + 连号 + 有一张A **/
 
         /**可能的组合**/
-        $possible1 = array(25,26,27,28,29);
-        $possible2 = array(41,42,43,44,45);
-        $possible3 = array(73,74,75,76,77);
-        $possible4 = array(137,138,139,140,141);
+        $possible1 = array(26,27,28,29,30);
+        $possible2 = array(42,43,44,45,46);
+        $possible3 = array(74,75,76,77,78);
+        $possible4 = array(138,139,140,141,142);
 
         $p1 = array_values(array_intersect($pokers,$possible1));
         if(count($p1) == 5){
@@ -364,6 +365,10 @@ class Texas extends CI_Controller {
         //TODO 测试
         //if($pokers == null) $pokers=array(17,34,68,67,69,71,70);
         //有Ace的情况下，Ace当1
+        if(in_array(30,$pokers)) $pokers[] = "17";
+        if(in_array(46,$pokers)) $pokers[] = "33";
+        if(in_array(78,$pokers)) $pokers[] = "65";
+        if(in_array(142,$pokers)) $pokers[] = "129";
 
         /**规则： 花色相同 + 连号**/
         $pokerTemp = array();   //用于临时存放计算
@@ -568,12 +573,19 @@ class Texas extends CI_Controller {
     function isStraight($pokers){
         //TODO 测试
         //$pokers=array(18,35,68,133,22,76,34);
+        //有Ace的情况下，Ace当1
+        if(in_array(30,$pokers)) $pokers[] = "17";
+        if(in_array(46,$pokers)) $pokers[] = "33";
+        if(in_array(78,$pokers)) $pokers[] = "65";
+        if(in_array(142,$pokers)) $pokers[] = "129";
 
-        //去除高四位
+        //去除高四位，并忽略低位值相同的，如 2 3 4 4 5 6
         $newPokers = array();
         foreach($pokers as $poker){
             $low4 = $poker & 15;
-            $newPokers[$poker] = $low4;
+            if(!in_array($low4,$newPokers)){
+                $newPokers[$poker] = $low4;
+            }
         }
 
         $confirms = array();      //确定为顺子的牌
@@ -594,7 +606,7 @@ class Texas extends CI_Controller {
                     $temp[$key] = $newPokers[$key];
                 }
                 $min = $temp[$newPokersKeys[$i]];    //最小值
-                $max = $temp[count($temp) - 1];      //最大值
+                $max = $temp[$newPokersKeys[count($temp) - 1]];      //最大值
                 //连号情况下最大与最小差4
                 $chckeDiff = $max - $min;
                 if($chckeDiff ===4 ){
