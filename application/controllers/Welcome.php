@@ -26,4 +26,8 @@ class Welcome extends CI_Controller {
     public function info(){
         phpinfo();
     }
+
+    public function env(){
+        print_r($_SERVER);
+    }
 }
