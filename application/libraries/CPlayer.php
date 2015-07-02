@@ -7,7 +7,11 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
  * Time: 12:43
  */
 
-class Player {
+class CPlayer {
+    /**
+     * @var string 玩家id
+     */
+    public $playerId;
     /**
      * @var string 玩家姓名
      */
@@ -17,6 +21,11 @@ class Player {
      * @var string 钱包
      */
     private $wallet;
+
+    /**
+     * @var int 当前场次id
+     */
+    private $currentSceneId = 0;
 
     /**
      * @return string

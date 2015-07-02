@@ -7,7 +7,19 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Texas extends CI_Controller {
 
-    //彩池
+    //场地最多人数控制
+    private $placeMaxPlayer = 12;
+
+    //当前牌局号（场次控制）
+    private $sceneId = 0;
+
+    //牌局开始状态 0=未开始 1=进行中 2=已结束
+    private $startStatus = 0;
+
+    //当前牌局玩家下注信息
+    private $playersBetLogs = array();
+
+    //当前牌局彩池
     private $jackpot = 0;
 
     //庄家手中未发的牌
@@ -16,35 +28,115 @@ class Texas extends CI_Controller {
     //台面  泛指桌上的五张公共牌
     private $board = array();
 
-    //当前玩家(数组)
+    //当前所有玩家（数组）
     private $players = array();
+
+    //当前登录的玩家
+    private $player;
+
+    //坐下但未进入游戏的玩家（数组）
+    private $players_hold = array();
 
     //玩家手中的牌面
     private $playersPoker = array();
-
-    //当前牌局玩家下注信息
-
-    //牌局开始状态 0=未开始 1=进行中 2=已结束
-    private $startStatus = 0;
 
 
     public function __construct()
     {
         parent::__construct();
-        //TODO 假定有2名玩家,钱包里分别有 3000和4000元
-        $this->players = array(
-            "1001"=>array("fullname"=>"player 1","wallet"=>3000),
-            "1002"=>array("fullname"=>"player 2","wallet"=>4000),
-        );
+        $this->load->library('CPlayer');
+        $this->load->library('session');
+        $this->load->driver('cache', array('adapter' => 'apc', 'backup' => 'file'));    //TODO windows下的memcached没安装成功，先用着这个
+        //读取缓存中当前牌局的所有用户
+        $players = $this->cache->get("scene_".$this->sceneId."_players");
+        if(!is_array($players)){
+            $this->players = array();
+        }
+        $this->players = $players;
+        //获取session中当前登录用户id到
+        $playerId = $this->session->userdata('playerId');
+        if($playerId > 0){
+            //读取缓存中当前登录用户
+            $this->player = $this->cache->get("player_".$playerId);
+        }
     }
 
     public function index()
     {
         //输出场景数据
         $scene =array(
-            "players" =>$this->players
+            "sceneId" =>$this->sceneId,                     //当前牌局号（场次控制）
+            "player" =>is_object($this->player)?$this->player:null,                     //当前牌局号（场次控制）
+            "players" =>$this->players,                     //当前所有玩家（数组）
+            "players_hold" =>$this->players_hold,                     //当前所有玩家（数组）
+            "startStatus" => $this->startStatus,            //牌局开始状态 0=未开始 1=进行中 2=已结束
+            "playersBetLogs" => $this->playersBetLogs,      //当前牌局玩家下注信息
+            "jackpot" => $this->jackpot,                    //当前牌局彩池
+            "board" => $this->board,                        //台面  泛指桌上的五张公共牌
         );
         $this->load->view('texas',$scene);
+    }
+
+    /**
+     * 登录，默认登录后马上坐下（进入游戏玩家池）
+     */
+    public function login(){
+        $fullname = $this->input->post("fullname");
+        $this->load->model('PlayerModel');
+        $row = $this->PlayerModel->select_user_by_fullName($fullname);
+        if(!empty($row)){
+            $this->player = new CPlayer();
+            $this->player->playerId = $row["id"];
+            $this->player->fullName = $row["fullName"];
+            $this->player->setWallet($row["wallet"]);
+
+            //保存当前登录用户到缓存中
+            $this->cache->save("player_".$this->player->playerId,$this->player,3600);
+            //保存当前登录用户id到session中
+            $this->session->set_userdata('playerId',$this->player->playerId);
+
+            //是否有空闲的场地
+            //FIXME:
+
+            //如果游戏未开场，且座位未满，则进入游戏玩家池，否则进入等待池
+            if($this->startStatus !== 1 && count($this->players) < $this->placeMaxPlayer){
+                $this->addPlayer($this->player);
+            }else{
+                $this->addHoldPlayer($this->player);
+            }
+
+        }
+
+        $this->processResult(null,"ok",null);
+    }
+
+    /**
+     * 退出登录
+     */
+    public function logout(){
+        //TODO 退出登录
+    }
+
+    /**
+     * 进入游戏玩家池
+     * 必须是在牌局未开始前
+     * @param CPlayer $player
+     */
+    function addPlayer(CPlayer $player){
+        $this->players[$player->playerId] = $player;
+        //保存当前牌局的所有用户到缓存中
+        $this->cache->save("scene_".$this->sceneId."_players",$this->players,3600);
+    }
+
+    /**
+     * 进入等待池
+     * @param CPlayer $player
+     */
+    function addHoldPlayer(CPlayer $player){
+        /**退出（清除）游戏玩家池**/
+        unset($this->players[$player->playerId]);
+        //保存当前牌局的所有用户到缓存中
+        $this->cache->save("scene_".$this->sceneId."_players",$this->players,3600);
     }
 
     /**
@@ -167,6 +259,11 @@ class Texas extends CI_Controller {
      */
     public function newDeal(){
         //TODO 需要增加牌局控制的逻辑，只有未开始或已经结束的牌局才能开始新牌局
+        $this->load->model('SceneModel');
+        $sceneId = $this->SceneModel->get_new_scene();
+        if($sceneId > 0){
+            $this->sceneId = $sceneId;
+        }
 
         //生成新的扑克牌（4 x 13 的二维数组）
         /**
@@ -208,13 +305,18 @@ class Texas extends CI_Controller {
         //每人发两张牌
         for($i=0;$i<2;$i++){
             foreach($this->players as $playerId => $player){
-                $this->playersPoker[$playerId][] = $this->numberToPokerFace(array_pop($this->bankerPoker));     //将牌面值转为牌面描述方便看
+                $poker = array_pop($this->bankerPoker);
+                $pickPoker = array();
+                $pickPoker["name"] = $this->numberToPokerFace($poker);     //将牌面值转为牌面描述方便看
+                $pickPoker["num"] = $poker;    //牌值
+
+                $this->playersPoker[$playerId][] = $pickPoker;
             }
         }
 
         //返回信息
         $returnArray =array(
-            "playersPoker" => $this->playersPoker   //TODO 这里应只出当前用户的牌面
+            "playersPoker" => $this->playersPoker[$this->player->playerId]   //这里应只出当前用户的牌面
         );
         $this->processResult($returnArray);
     }
@@ -248,16 +350,16 @@ class Texas extends CI_Controller {
         $flower = $num >> 4;
         switch($flower){
             case 1:
-                $flowerType="方块";
+                $flowerType="♦";
                 break;
             case 2:
-                $flowerType="梅花";
+                $flowerType="♣";
                 break;
             case 4:
-                $flowerType="红桃";
+                $flowerType="♥";
                 break;
             case 8:
-                $flowerType="黑桃";
+                $flowerType="♥";
                 break;
         }
 
@@ -606,7 +708,8 @@ class Texas extends CI_Controller {
                     $temp[$key] = $newPokers[$key];
                 }
                 $min = $temp[$newPokersKeys[$i]];    //最小值
-                $max = $temp[$newPokersKeys[count($temp) - 1]];      //最大值
+                $max = $temp[$newPokersKeys[4 + $i]];      //最大值
+
                 //连号情况下最大与最小差4
                 $chckeDiff = $max - $min;
                 if($chckeDiff ===4 ){
@@ -776,14 +879,16 @@ class Texas extends CI_Controller {
     /**
      * 处理并返回资料
      * @param $data
+     * @param string $status
+     * @param null $error
      */
-    function processResult($data){
+    function processResult($data,$status="ok",$error=null){
         $returnData=array(
             "game" => $data,
-            "status" => "ok",
-            "error" => null,
+            "status" => $status,
+            "error" => $error,
             "debug" => array(),
-            "user" => $this->players["1001"]         //TODO 通过session获取当前用户
+            "user" => $this->player
         );
         echo json_encode($returnData);
         exit();

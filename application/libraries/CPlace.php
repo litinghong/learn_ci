@@ -2,46 +2,47 @@
 if (!defined('BASEPATH')) exit('No direct script access allowed');
 /**
  * Created by PhpStorm.
+ * 场地类
  * User: user1011
  * Date: 2015/7/2
  * Time: 12:43
  */
 
-class CPlayer {
+class CPlace {
     /**
-     * @var string 玩家id
+     * @var array 当前场地中的玩家
      */
-    public $playerId;
-    /**
-     * @var string 玩家姓名
-     */
-    public $fullName;
+    private $players;
 
     /**
-     * @var string 钱包
+     * @var int 场地开设时间
      */
-    private $wallet;
+    public $start_dateline;
 
     /**
-     * @var int 当前场次id
+     * @var int 场地关闭时间
      */
-    private $currentSceneId = 0;
+    public $end_dateline;
 
     /**
-     * @return string
+     * @var int 最大允许参加游戏的人数
      */
-    public function getWallet()
-    {
-        return $this->wallet;
-    }
+    public $maxPlayer;
 
     /**
-     * @param string $wallet
+     * @var int 最少开局人数
      */
-    public function setWallet($wallet)
-    {
-        $this->wallet = $wallet;
-    }
+    public $minPlayer;
+
+    /**
+     * @var int 场地可用状态 1=可用 0=不可用
+     */
+    public $status;
+
+    /**
+     * @var int 场次ID
+     */
+    public $sceneId;
 
 
 }

@@ -1,12 +1,13 @@
 <?php
 /**
  * Created by PhpStorm.
+ * 场次控制模型
  * User: user1011
  * Date: 2015/7/2
  * Time: 12:48
  */
 
-class PlayerModel extends CI_Model{
+class SceneModel extends CI_Model{
 
     function __construct()
     {
@@ -15,16 +16,41 @@ class PlayerModel extends CI_Model{
     }
 
     /**
-     * @param $fullname string 用户名
-     * @return player object 玩家对象
+     * 获得新场次号
+     * @return mixed
      */
-    function select_user_by_fullName($fullName)
+    function get_new_scene()
     {
-        $query = $this->db->get_where("players","fullName='$fullName'");
-        $rows = $query->result_array();
-        if(count($rows) > 0){
-            return array_pop($rows);
+        $result = $this->db->insert('scene_queue', array("start_dateline"=>time()));
+        if($result == true){
+            $insertId = $this->db->insert_id();
+            return $insertId;
         }
-        return NULL;
+
+        return false;
+    }
+
+    /**
+     * 获得新场地号，并返回场地信息
+     * @return mixed
+     */
+    function get_new_place()
+    {
+        //TODO 场地的默认配置需要从配置文件中设置
+        $newPlace = array(
+            "start_dateline"=>time(),
+            "end_dateline"=>null,
+            "maxPlayer"=>12,
+            "minPlayer"=>2,
+            "status"=>1,
+        );
+        $result = $this->db->insert('place_queue', $newPlace);
+        if($result == true){
+            $insertId = $this->db->insert_id();
+            $newPlace["placeId"] = $insertId;
+            return $newPlace;
+        }
+
+        return false;
     }
 }

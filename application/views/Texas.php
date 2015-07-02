@@ -27,6 +27,7 @@
     <form name="form1" action="/index.php/Texas" method="post" >
         <div id="bankerArea">
             庄家操作：
+            <input type="button" value="手动开局" class="normalButton" onclick="testStartScene();">
             <input type="button" value="发牌" class="normalButton">
             <input type="button" value="测试桌上牌面" class="normalButton" onclick="testBordPoker()">
             <input type="button" value="清空桌面" class="normalButton" onclick="testEmptyBord()">
@@ -34,8 +35,13 @@
         <div id="board">
             <!--场景信息-->
             <div id="scene">
-                当前场：xx厅
+                当前场：<?php echo $sceneId;?>
                 玩家人数：<?php echo count($players);?>
+                围观人数：<?php echo count($players_hold);?>
+                <div>
+                    我的信息：
+                    <font style="color:red;"><?php if(!empty($player))echo $player->fullName;?></font>
+                </div>
             </div>
             <!--放扑克的位置-->
             <div id="pokersPlace">
@@ -49,68 +55,79 @@
         </div>
         <div id="playerArea">
             <input type="button" value="进场" class="normalButton">
+            <input type="button" value="登录" class="normalButton" onclick="login()">
             <input type="button" value="坐下" class="normalButton">
             <input type="button" value="下注" class="normalButton">
         </div>
-        <div id="poker1" class="pokerRow">
-            <input type="button" value="♦2" tag="17" class="pokerCard">
-            <input type="button" value="♦3" tag="18" class="pokerCard">
-            <input type="button" value="♦4" tag="19" class="pokerCard">
-            <input type="button" value="♦5" tag="20" class="pokerCard">
-            <input type="button" value="♦6" tag="21" class="pokerCard">
-            <input type="button" value="♦7" tag="22" class="pokerCard">
-            <input type="button" value="♦8" tag="23" class="pokerCard">
-            <input type="button" value="♦9" tag="24" class="pokerCard">
-            <input type="button" value="♦10" tag="25" class="pokerCard">
-            <input type="button" value="♦J" tag="26" class="pokerCard">
-            <input type="button" value="♦Q" tag="27" class="pokerCard">
-            <input type="button" value="♦K" tag="28" class="pokerCard">
-            <input type="button" value="♦A" tag="29" class="pokerCard">
+        <!--测试区域-->
+        <div id="testArea">
+            <div id="poker1" class="pokerRow">
+                <input type="button" value="♦2" tag="18" class="pokerCard">
+                <input type="button" value="♦3" tag="19" class="pokerCard">
+                <input type="button" value="♦4" tag="20" class="pokerCard">
+                <input type="button" value="♦5" tag="21" class="pokerCard">
+                <input type="button" value="♦6" tag="22" class="pokerCard">
+                <input type="button" value="♦7" tag="23" class="pokerCard">
+                <input type="button" value="♦8" tag="24" class="pokerCard">
+                <input type="button" value="♦9" tag="25" class="pokerCard">
+                <input type="button" value="♦10" tag="26" class="pokerCard">
+                <input type="button" value="♦J" tag="27" class="pokerCard">
+                <input type="button" value="♦Q" tag="28" class="pokerCard">
+                <input type="button" value="♦K" tag="29" class="pokerCard">
+                <input type="button" value="♦A" tag="30" class="pokerCard">
+            </div>
+            <div id="poker2" class="pokerRow">
+
+                <input type="button" value="♣2" tag="34" class="pokerCard">
+                <input type="button" value="♣3" tag="35" class="pokerCard">
+                <input type="button" value="♣4" tag="36" class="pokerCard">
+                <input type="button" value="♣5" tag="37" class="pokerCard">
+                <input type="button" value="♣6" tag="38" class="pokerCard">
+                <input type="button" value="♣7" tag="39" class="pokerCard">
+                <input type="button" value="♣8" tag="40" class="pokerCard">
+                <input type="button" value="♣9" tag="41" class="pokerCard">
+                <input type="button" value="♣10" tag="42" class="pokerCard">
+                <input type="button" value="♣J" tag="43" class="pokerCard">
+                <input type="button" value="♣Q" tag="44" class="pokerCard">
+                <input type="button" value="♣K" tag="45" class="pokerCard">
+                <input type="button" value="♣A" tag="46" class="pokerCard">
+            </div>
+            <div id="poker3" class="pokerRow">
+                <input type="button" value="♥2" tag="66" class="pokerCard">
+                <input type="button" value="♥3" tag="67" class="pokerCard">
+                <input type="button" value="♥4" tag="68" class="pokerCard">
+                <input type="button" value="♥5" tag="69" class="pokerCard">
+                <input type="button" value="♥6" tag="70" class="pokerCard">
+                <input type="button" value="♥7" tag="71" class="pokerCard">
+                <input type="button" value="♥8" tag="72" class="pokerCard">
+                <input type="button" value="♥9" tag="73" class="pokerCard">
+                <input type="button" value="♥10" tag="74" class="pokerCard">
+                <input type="button" value="♥J" tag="75" class="pokerCard">
+                <input type="button" value="♥Q" tag="76" class="pokerCard">
+                <input type="button" value="♥K" tag="77" class="pokerCard">
+                <input type="button" value="♥A" tag="78" class="pokerCard">
+            </div>
+            <div id="poke4" class="pokerRow">
+                <input type="button" value="♠2" tag="130" class="pokerCard">
+                <input type="button" value="♠3" tag="131" class="pokerCard">
+                <input type="button" value="♠4" tag="132" class="pokerCard">
+                <input type="button" value="♠5" tag="133" class="pokerCard">
+                <input type="button" value="♠6" tag="134" class="pokerCard">
+                <input type="button" value="♠7" tag="135" class="pokerCard">
+                <input type="button" value="♠8" tag="136" class="pokerCard">
+                <input type="button" value="♠9" tag="137" class="pokerCard">
+                <input type="button" value="♠10" tag="138" class="pokerCard">
+                <input type="button" value="♠J" tag="139" class="pokerCard">
+                <input type="button" value="♠Q" tag="140" class="pokerCard">
+                <input type="button" value="♠K" tag="141" class="pokerCard">
+                <input type="button" value="♠A" tag="142" class="pokerCard">
+            </div>
         </div>
-        <div id="poker2" class="pokerRow">
-            <input type="button" value="♣2" tag="33" class="pokerCard">
-            <input type="button" value="♣3" tag="34" class="pokerCard">
-            <input type="button" value="♣4" tag="35" class="pokerCard">
-            <input type="button" value="♣5" tag="36" class="pokerCard">
-            <input type="button" value="♣6" tag="37" class="pokerCard">
-            <input type="button" value="♣7" tag="38" class="pokerCard">
-            <input type="button" value="♣8" tag="39" class="pokerCard">
-            <input type="button" value="♣9" tag="40" class="pokerCard">
-            <input type="button" value="♣10" tag="41" class="pokerCard">
-            <input type="button" value="♣J" tag="42" class="pokerCard">
-            <input type="button" value="♣Q" tag="43" class="pokerCard">
-            <input type="button" value="♣K" tag="44" class="pokerCard">
-            <input type="button" value="♣A" tag="45" class="pokerCard">
-        </div>
-        <div id="poker3" class="pokerRow">
-            <input type="button" value="♥2" tag="65" class="pokerCard">
-            <input type="button" value="♥3" tag="66" class="pokerCard">
-            <input type="button" value="♥4" tag="67" class="pokerCard">
-            <input type="button" value="♥5" tag="68" class="pokerCard">
-            <input type="button" value="♥6" tag="69" class="pokerCard">
-            <input type="button" value="♥7" tag="70" class="pokerCard">
-            <input type="button" value="♥8" tag="71" class="pokerCard">
-            <input type="button" value="♥9" tag="72" class="pokerCard">
-            <input type="button" value="♥10" tag="73" class="pokerCard">
-            <input type="button" value="♥J" tag="74" class="pokerCard">
-            <input type="button" value="♥Q" tag="75" class="pokerCard">
-            <input type="button" value="♥K" tag="76" class="pokerCard">
-            <input type="button" value="♥A" tag="77" class="pokerCard">
-        </div>
-        <div id="poke4" class="pokerRow">
-            <input type="button" value="♠2" tag="129" class="pokerCard">
-            <input type="button" value="♠3" tag="130" class="pokerCard">
-            <input type="button" value="♠4" tag="131" class="pokerCard">
-            <input type="button" value="♠5" tag="132" class="pokerCard">
-            <input type="button" value="♠6" tag="133" class="pokerCard">
-            <input type="button" value="♠7" tag="134" class="pokerCard">
-            <input type="button" value="♠8" tag="135" class="pokerCard">
-            <input type="button" value="♠9" tag="136" class="pokerCard">
-            <input type="button" value="♠10" tag="137" class="pokerCard">
-            <input type="button" value="♠J" tag="138" class="pokerCard">
-            <input type="button" value="♠Q" tag="139" class="pokerCard">
-            <input type="button" value="♠K" tag="140" class="pokerCard">
-            <input type="button" value="♠A" tag="141" class="pokerCard">
+
+        <!--我的底牌-->
+        <div id="myPokers" class="pokerRow">
+            <div>我的底牌</div>
+            <div id="myDesk"></div>
         </div>
     </form>
 </body>
@@ -122,7 +139,7 @@
     /**绑定扑克的点击操作**/
     $(document).ready(function(){
         //非桌面的扑克点击事件
-        $(".pokerRow .pokerCard").click(function(){
+        $("#testArea .pokerCard").click(function(){
             testPushPokerOnDesk(this);
         });
     });
@@ -151,6 +168,31 @@
     function testEmptyBord(){
         deskPokers = [];
         $("#pokersPlace").empty();
+    }
+
+    /**点击登录**/
+    function login(){
+        var fullname=prompt("请输入您的姓名","user1");
+
+        //向服务器发送请求
+        $.post("/index.php/Texas/login",{"fullname":fullname},function(result){
+            $(checkResult).text(result);
+        },"text");
+    }
+
+    /**点击手动开场 TODO 测试用**/
+    function testStartScene(){
+        //向服务器发送请求
+        $.post("/index.php/Texas/newDeal",null,function(result) {
+            //TODO 检测服务器返回是否异常
+            var playersPoker  = result.game.playersPoker;
+
+            for(var i = 0;i<playersPoker.length;i++){
+                var poker = playersPoker[i];
+                $("#myDesk").append('<input type="button" value="'+ poker.name +'" tag="'+ poker.num +'" class="pokerCard">');
+            }
+
+        },"json");
     }
 
     /**错误处理**/
