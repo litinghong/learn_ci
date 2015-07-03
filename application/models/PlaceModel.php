@@ -39,20 +39,6 @@ class PlaceModel extends CI_Model{
      */
     public $playersBetLogs = array();
 
-    /**
-     * @var int 当前牌局彩池
-     */
-    public $jackpot = 0;
-
-    /**
-     * @var array 庄家手中未发的牌
-     */
-    public $bankerPoker = array();
-
-    /**
-     * @var array 台面  泛指桌上的五张公共牌
-     */
-    public $board = array();
 
     /**
      * @var int 场地开设时间
@@ -125,8 +111,6 @@ class PlaceModel extends CI_Model{
             $this->playersCount = $placeInfo->playersCount;
 
             $this->players_hold = $placeInfo->players_hold;
-            $this->bankerPoker = $placeInfo->bankerPoker;
-            $this->board = $placeInfo->board;
 
             return TRUE;
         }else{
@@ -150,6 +134,7 @@ class PlaceModel extends CI_Model{
      * 1、如果玩家已在某个场地，则不分配
      * 2、优先分配未开始的场地
      * 3、如果没有则开设新的场地
+     * 4、默认配置一个电脑玩家，电脑玩家的payerId号为1
      */
     public function assignPlace(){
         if($this->placeId == 0){
@@ -190,8 +175,16 @@ class PlaceModel extends CI_Model{
                 $this->players[] = $this->currentPlayer;        //添加新玩家
             }
 
+            //添加一个电脑玩家到数组中
+            if(!in_array("1",$playerIds)){
+                $computerPlayer =  $this->currentPlayer->get_player(1);
+                $this->players[] = $computerPlayer;
+            }
+
             //添加玩家id号到数组
             $playerIds = array_keys($this->players);
+
+
 
             //玩家数量统计
             $this->playersCount =  count($this->players);

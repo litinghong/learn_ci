@@ -8,6 +8,21 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Texas extends CI_Controller {
 
 
+    /**
+     * @var GameModel;
+     */
+    public $GameModel;
+
+    /**
+     * @var PlayerModel
+     */
+    public $PlayerModel;
+
+    /**
+     * @var PlaceModel;
+     */
+    public $PlaceModel;
+
     //当前在哪个场地
     private $placeId = 0;
 
@@ -40,6 +55,11 @@ class Texas extends CI_Controller {
 
     //玩家手中的牌面
     private $playersPoker = array();
+
+    /**
+     * @var PlayerModel 电脑玩家对象
+     */
+    private $computerPlayer;
 
 
     public function __construct()
@@ -81,6 +101,8 @@ class Texas extends CI_Controller {
         $this->PlaceModel->savePlace();
         //保存玩家信息
         $this->PlayerModel->savePlayer();
+        //保存游戏信息
+        $this->GameModel->saveGame();
 
     }
 
@@ -108,8 +130,9 @@ class Texas extends CI_Controller {
                 "players" =>$this->PlaceModel->players,                     //当前场地所有玩家（数组）
                 "players_hold" =>$this->PlaceModel->players_hold,           //围观中的玩家
                 "playersBetLogs" => $this->PlaceModel->playersBetLogs,      //当前牌局玩家下注信息
-                "jackpot" => $this->PlaceModel->jackpot,                    //当前牌局彩池
-                "board" => $this->PlaceModel->board,                        //台面  泛指桌上的五张公共牌
+                "bettingRounds" => $this->GameModel->bettingRounds,      //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
+                "jackpot" => $this->GameModel->jackpot,      //当前牌局彩池
+                "board" => $this->GameModel->board,                        //台面  泛指桌上的五张公共牌
             );
         }
 
@@ -348,30 +371,19 @@ class Texas extends CI_Controller {
     }
 
     /**
-     * B 底牌圈 / 前翻牌圈 - 公共牌出现以前的第一轮叫注。
+     * 玩家下注
      */
-    public function preFlop(){
-        //TODO 检测游戏人数是否大于1人
-        //初始化玩家手上的牌
-        $this->playersPoker = array();
-        //每人发两张牌
-        for($i=0;$i<2;$i++){
-            foreach($this->players as $playerId => $player){
-                $poker = array_pop($this->bankerPoker);
-                $pickPoker = array();
-                $pickPoker["name"] = $this->numberToPokerFace($poker);     //将牌面值转为牌面描述方便看
-                $pickPoker["num"] = $poker;    //牌值
-
-                $this->playersPoker[$playerId][] = $pickPoker;
-            }
-        }
-
-        //返回信息
-        $returnArray =array(
-            "playersPoker" => $this->playersPoker[$this->player->playerId]   //这里应只出当前用户的牌面
-        );
-        $this->processResult($returnArray);
+    public function bid(){
+        $money = $this->input->post("money");
+        $this->GameModel->bid($this->PlayerModel,$money);
+        echo json_encode($money);
     }
+
+    public function finishBid(){
+        $this->GameModel->finishBid();
+    }
+
+
     /**
      * C 押注圈 - 每一个牌局可分为四个押注圈。每一圈押注由按钮（庄家）左侧的玩家开始叫注。
      */

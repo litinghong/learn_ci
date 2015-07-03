@@ -36,13 +36,18 @@
             <!--场景信息-->
             <?php if(isset($player)){ ?>
             <div id="scene">
-                当前场：<?php echo $placeId;?>
-                当前次：<?php echo $sceneId;?>
-                玩家人数：<?php echo count($players);?>
-                围观人数：<?php echo count($players_hold);?>
+                <dl>
+                    <dt >当前场：</dt><dd><?php echo $placeId;?></dd>
+                    <dt >当前次：</dt><dd><?php echo $sceneId;?></dd>
+                    <dt >玩家人数：</dt><dd><?php echo count($players);?></dd>
+                    <dt >围观人数：</dt><dd><?php echo count($players_hold);?></dd>
+                    <dt >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：</dt><dd><?php echo $bettingRounds;?></dd>
+                    <dt >当前奖池：</dt><dd id="jackpot"><?php echo $jackpot;?></span></dd>
+                </dl>
                 <div>
                     我的信息：
                     <font style="color:red;"><?php if(!empty($player))echo $player->fullName;?></font>
+                    钱包：<?php echo $player->wallet?>
                     场地：<?php echo $player->currentPlaceId?>
                     场次：<?php echo $player->currentSceneId?>
                     在玩：<?php echo $player->isPlaying==TRUE?"是":"否"?>
@@ -63,7 +68,7 @@
             <input type="button" value="进场 entryPlace" class="normalButton" onclick="entryPlace()">
             <input type="button" value="登录 login" class="normalButton" onclick="login()">
             <input type="button" value="坐下" class="normalButton">
-            <input type="button" value="下注" class="normalButton">
+            <input type="button" value="下注" class="normalButton" onclick="bid()">
         </div>
         <!--测试区域-->
         <div id="testArea">
@@ -206,6 +211,16 @@
                 $("#myDesk").append('<input type="button" value="'+ poker.name +'" tag="'+ poker.num +'" class="pokerCard">');
             }
 
+        },"json");
+    }
+
+    /**下注**/
+    function bid(){
+        var bidMoney=prompt("请输入下流金额","10");
+
+        //向服务器发送请求
+        $.post("/index.php/Texas/bid",{"money":bidMoney},function(result){
+            $(checkResult).text(result);
         },"json");
     }
 

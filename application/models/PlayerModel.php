@@ -21,7 +21,7 @@ class PlayerModel extends CI_Model{
     /**
      * @var string 钱包
      */
-    private $wallet;
+    public $wallet;
 
     /**
      * @var int 当前场地ID

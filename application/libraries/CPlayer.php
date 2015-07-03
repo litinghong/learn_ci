@@ -7,7 +7,7 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
  * Time: 12:43
  */
 
-class CPlayer {
+class CPlayer extends CI_Controller{
     /**
      * @var string 玩家id
      */
@@ -23,25 +23,41 @@ class CPlayer {
     private $wallet;
 
     /**
-     * @var int 当前场次id
+     * @var int 当前场地ID
      */
-    private $currentSceneId = 0;
+    public $currentPlaceId = 0;
 
     /**
-     * @return string
+     * @var int 当前场次ID
      */
-    public function getWallet()
-    {
-        return $this->wallet;
-    }
+    public $currentSceneId = 0;
 
     /**
-     * @param string $wallet
+     * @var bool 是否正在玩游戏
      */
-    public function setWallet($wallet)
+    public $isPlaying = false;
+
+    /**
+     * 通过玩家ID初始化玩家的信息
+     * @param $playerId int 玩家ID
+     */
+    function __construct($playerId)
     {
-        $this->wallet = $wallet;
+        parent::__construct();
+        if($playerId > 0){
+            $this->load->driver('cache', array('adapter' => 'apc', 'backup' => 'file'));
+            $this->playerId = $playerId;
+            //读取缓存中当前登录用户
+            $playerInfo = $this->cache->get("player_".$playerId);
+            $this->fullName = $playerInfo["fullName"];
+            $this->wallet = $playerInfo["wallet"];
+            $this->currentPlaceId = $playerInfo["currentPlaceId"];
+            $this->currentSceneId = $playerInfo["currentSceneId"];
+            $this->isPlaying = $playerInfo["isPlaying"];
+        }
     }
+
+
 
 
 }

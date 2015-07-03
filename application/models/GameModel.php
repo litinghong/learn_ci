@@ -46,7 +46,7 @@ class GameModel extends CI_Model{
     public function init(PlaceModel $placeModel){
         $this->place = $placeModel;
         if($placeModel->placeId >0){
-            //读取缓存中当前登录用户
+            //读取缓存中当前游戏信息
             $gameInfo = $this->cache->get("game_".$placeModel->placeId."_".$placeModel->sceneId);
 
             //如果有缓存则读取缓存（表明有正在进行的游戏），如果没有则初始化
@@ -61,7 +61,7 @@ class GameModel extends CI_Model{
 
             //如果可进行游戏则马上开始
             if($this->canPlay() == TRUE) $this->newGame();
-            var_dump($this->bankerPoker);
+            //var_dump($this->bankerPoker);
             var_dump($this->playersPoker);
 
             return TRUE;
@@ -144,6 +144,79 @@ class GameModel extends CI_Model{
                 $this->playersPoker[$player->playerId][] = $pickPoker;
             }
         }
+    }
+
+    /**
+     * 下注
+     * @param PlayerModel $playerModel
+     * @param $money
+     * @throws Exception
+     */
+    public function bid(PlayerModel $playerModel,$money){
+        //检测用户钱包够不够钱
+        if($playerModel->wallet < $money){
+            throw new Exception("钱不够了");
+        }
+
+        //将钱扣掉
+        $playerModel->wallet -= $money;     //TODO 直接存入数据库
+
+        //将钱放入奖池
+        $this->jackpot += $money;
+    }
+
+    /**
+     * 完成下注
+     */
+    public function finishBid(){
+        //如果还有下一圈，推到下一圈
+        if($this->bettingRounds < 4) {
+            $this->bettingRounds++;
+        }
+
+        return $this->sendPoker();
+    }
+
+    /**
+     * 按规则发牌
+     * @return array|void
+     */
+    private function sendPoker(){
+        // 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
+        switch($this->bettingRounds){
+            case 2:
+                return $this->sendPublicPoker_one();
+                break;
+            case 3:
+                return $this->sendPublicPoker_two();
+                break;
+            case 4:
+                return $this->sendPublicPoker_tree();
+                break;
+            default:
+                return array();
+        }
+    }
+
+    /**
+     * C 发放三张公牌
+     */
+    private function sendPublicPoker_one(){
+        //TODO
+    }
+
+    /**
+     * D 第四张公共牌
+     */
+    private function sendPublicPoker_two(){
+        //TODO
+    }
+
+    /**
+     * D 第五张公共牌
+     */
+    private function sendPublicPoker_tree(){
+        //TODO
     }
 
     /**
