@@ -34,15 +34,21 @@
         </div>
         <div id="board">
             <!--场景信息-->
+            <?php if(isset($player)){ ?>
             <div id="scene">
-                当前场：<?php echo $sceneId;?>
+                当前场：<?php echo $placeId;?>
+                当前次：<?php echo $sceneId;?>
                 玩家人数：<?php echo count($players);?>
                 围观人数：<?php echo count($players_hold);?>
                 <div>
                     我的信息：
                     <font style="color:red;"><?php if(!empty($player))echo $player->fullName;?></font>
+                    场地：<?php echo $player->currentPlaceId?>
+                    场次：<?php echo $player->currentSceneId?>
+                    在玩：<?php echo $player->isPlaying==TRUE?"是":"否"?>
                 </div>
             </div>
+            <?php } ?>
             <!--放扑克的位置-->
             <div id="pokersPlace">
 
@@ -54,8 +60,8 @@
 
         </div>
         <div id="playerArea">
-            <input type="button" value="进场" class="normalButton">
-            <input type="button" value="登录" class="normalButton" onclick="login()">
+            <input type="button" value="进场 entryPlace" class="normalButton" onclick="entryPlace()">
+            <input type="button" value="登录 login" class="normalButton" onclick="login()">
             <input type="button" value="坐下" class="normalButton">
             <input type="button" value="下注" class="normalButton">
         </div>
@@ -176,6 +182,14 @@
 
         //向服务器发送请求
         $.post("/index.php/Texas/login",{"fullname":fullname},function(result){
+            $(checkResult).text(result);
+        },"text");
+    }
+
+    /**进场**/
+    function entryPlace(){
+        //向服务器发送请求
+        $.post("/index.php/Texas/entryPlace",null,function(result){
             $(checkResult).text(result);
         },"text");
     }

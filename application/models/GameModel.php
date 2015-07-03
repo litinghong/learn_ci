@@ -1,43 +1,36 @@
 <?php
 /**
  * Created by PhpStorm.
- * 玩家模型
+ * 游戏模型
  * User: user1011
  * Date: 2015/7/2
  * Time: 12:48
  */
 
-class PlayerModel extends CI_Model{
+class GameModel extends CI_Model{
 
     /**
-     * @var string 玩家id
+     * @var PlaceModel 场地类
      */
-    public $playerId;
-    /**
-     * @var string 玩家姓名
-     */
-    public $fullName;
+    private $place;
 
-    /**
-     * @var string 钱包
-     */
-    private $wallet;
+    //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
+    public $bettingRounds =0;
 
-    /**
-     * @var int 当前场地ID
-     */
-    public $currentPlaceId = 0;
+    //当前局游戏历史
+    public $gameHistory = array();
 
-    /**
-     * @var int 当前场次ID
-     */
-    public $currentSceneId = 0;
+    //当前牌局彩池
+    public $jackpot = 0;
 
-    /**
-     * @var bool 是否正在玩游戏
-     */
-    public $isPlaying = false;
+    //庄家手中未发的牌
+    public $bankerPoker = array();
 
+    //台面  泛指桌上的五张公共牌
+    public $board = array();
+
+    //玩家手中的牌面
+    public $playersPoker = array();
 
     function __construct()
     {
@@ -47,57 +40,159 @@ class PlayerModel extends CI_Model{
     }
 
     /**
-     * 通过玩家ID初始化玩家的信息
-     * @param $playerId int 玩家ID
-     * @return array
+     * 通过场地信息初始化游戏类
+     * @param PlaceModel $placeModel
      */
-    function init($playerId){
-        if($playerId > 0){
-            $this->playerId = $playerId;
+    public function init(PlaceModel $placeModel){
+        $this->place = $placeModel;
+        if($placeModel->placeId >0){
             //读取缓存中当前登录用户
-            $playerInfo = $this->cache->get("player_".$playerId);
-            //判断对象是否属于PlayerModel类
-            if($playerInfo instanceof PlayerModel){
-                $this->fullName = $playerInfo->fullName;
-                $this->wallet = $playerInfo->wallet;
-                $this->currentPlaceId = $playerInfo->currentPlaceId;
-                $this->currentSceneId = $playerInfo->currentSceneId;
-                $this->isPlaying = $playerInfo->isPlaying;
+            $gameInfo = $this->cache->get("game_".$placeModel->placeId."_".$placeModel->sceneId);
 
-                return TRUE;
+            //如果有缓存则读取缓存（表明有正在进行的游戏），如果没有则初始化
+            if($gameInfo instanceof GameModel){
+                $this->bettingRounds = $gameInfo->bettingRounds;
+                $this->gameHistory = $gameInfo->gameHistory;
+                $this->jackpot = $gameInfo->jackpot;
+                $this->bankerPoker = $gameInfo->bankerPoker;
+                $this->board = $gameInfo->board;
+                $this->playersPoker = $gameInfo->playersPoker;
             }
+
+            //如果可进行游戏则马上开始
+            if($this->canPlay() == TRUE) $this->newGame();
+            var_dump($this->bankerPoker);
+            var_dump($this->playersPoker);
+
+            return TRUE;
+        }
+
+        return FALSE;
+    }
+
+    /**
+     * 缓存游戏信息
+     */
+    function saveGame(){
+        $this->cache->save("game_".$this->place->placeId."_".$this->place->sceneId,$this,3600);
+    }
+
+
+    /**
+     * 是否可以开始游戏
+     * TODO 如果游戏玩家少于1人，则强行中止游戏
+     * @return bool
+     */
+    public function canPlay(){
+        if($this->bettingRounds ===0){
+            return TRUE;
         }
         return FALSE;
     }
 
     /**
-     * 执行用户登录
-     * @param $fullName
-     * @return bool|null
+     * 开始新的游戏
      */
-    function do_login($fullName)
-    {
-        $query = $this->db->get_where("players","fullName='$fullName'");
-        $rows = $query->result_array();
-        if(count($rows) > 0){
-            $row = array_pop($rows);
-            $this->playerId = $row["id"];
-            $this->fullName = $row["fullName"];
-            $this->wallet = $row["wallet"];
-            $this->currentPlaceId = 0;
-            $this->currentSceneId = 0;
-            $this->isPlaying = FALSE;
+    function newGame(){
+        //生成新的扑克牌（4 x 13 的二维数组）
+        /**
+         * 采用二进制位来表示牌面和花色
+         * 黑桃 = 128 = 1000 0000
+         * 红桃 = 64  = 0100 0000
+         * 梅花 = 32  = 0010 0000
+         * 方块 = 16  = 0001 0000
+         *
+         * 后四位按顺序表面牌值，并与前四位组合
+         * 黑桃 2 = 128 + 1 = 1000 0010
+         * 1 与 ace 在检测顺子的情况下相等
+         * 依此类推
+         */
+        $newPoker = array(
+            17,18,19,20,21,22,23,24,25,26,27,28,29,30,                 //方块 1 - A
+            33,34,35,36,37,38,39,40,41,42,43,44,45,46,                 //梅花 1 - A
+            65,66,67,68,69,70,71,72,73,74,75,76,77,78,                 //红桃 1 - A
+            129,130,131,132,133,134,135,136,137,138,139,140,141,142     //黑桃 1 - A
+        );
 
-            return TRUE;
-        }
-        return NULL;
+        //随机生成庄家手中的牌序
+        shuffle($newPoker);
+        $this->bankerPoker = $newPoker;
+
+        //向所有玩家发放底牌
+        $this->preFlop();
+
+        //设置当前游戏进入【底牌圈】
+        $this->bettingRounds = 1;
     }
 
     /**
-     * 缓存玩家信息
+     * B 底牌圈 / 前翻牌圈 - 公共牌出现以前的第一轮叫注。
      */
-    public function savePlayer(){
-        //缓存用户登录信息
-        $this->cache->save("player_".$this->playerId,$this,3600);
+    public function preFlop(){
+        //TODO 检测游戏人数是否大于1人
+        //初始化玩家手上的牌
+        $this->playersPoker = array();
+        //每人发两张牌
+        for($i=0;$i<2;$i++){
+            foreach($this->place->players as $player){
+
+                $poker = array_pop($this->bankerPoker);
+                $pickPoker = array();
+                $pickPoker["name"] = $this->numberToPokerFace($poker);     //将牌面值转为牌面描述方便看
+                $pickPoker["num"] = $poker;    //牌值
+
+                $this->playersPoker[$player->playerId][] = $pickPoker;
+            }
+        }
+    }
+
+    /**
+     * 将数值转换为牌面描述
+     * 测试地址 http://cidemo.my.com/index.php/Texas/numberToPokerFace/141
+     * @param $num
+     * @return string
+     */
+    public function numberToPokerFace($num){
+        $flowerType = ""; //花色
+        //花色计算
+        $flower = $num >> 4;
+        switch($flower){
+            case 1:
+                $flowerType="♦";
+                break;
+            case 2:
+                $flowerType="♣";
+                break;
+            case 4:
+                $flowerType="♥";
+                break;
+            case 8:
+                $flowerType="♥";
+                break;
+        }
+
+        //牌值计算
+        $pokerNum =  $num & 15; //高四位置0
+        if($pokerNum<10){
+            $pokerNum += 1;
+        }else{
+            switch($pokerNum){
+                case 10:
+                    $pokerNum = "J";
+                    break;
+                case 11:
+                    $pokerNum = "Q";
+                    break;
+                case 12:
+                    $pokerNum = "K";
+                    break;
+                case 13:
+                    $pokerNum = "A";
+                    break;
+            }
+        }
+
+        //返回牌面
+        return $flowerType . $pokerNum;
     }
 }
