@@ -32,9 +32,6 @@ class Texas extends CI_Controller {
     //当前牌局玩家下注信息
     private $playersBetLogs = array();
 
-    //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
-    private $BettingRounds =0;
-
     //当前局游戏历史
     private $gameHistory = array();
 
@@ -104,6 +101,9 @@ class Texas extends CI_Controller {
         //保存游戏信息
         $this->GameModel->saveGame();
 
+        //输出游戏信息
+        //var_dump( $this->statusReport());
+
     }
 
     /**
@@ -150,6 +150,10 @@ class Texas extends CI_Controller {
         if($result == TRUE){
             //保存session
             $this->session->set_userdata('playerId',$this->PlayerModel->playerId);
+            //单机游戏直接进场
+            $this->PlaceModel->init($this->PlayerModel);
+            $this->PlaceModel->assignPlace();
+
             $this->processResult(null,"ok",null);
         }else{
             $this->processResult(null,"error",null);
@@ -165,18 +169,6 @@ class Texas extends CI_Controller {
     }
 
 
-
-    /**
-     * 进场
-     * 注意：未登录的用户不能进场
-     */
-    public function entryPlace(){
-        if($this->PlayerModel->playerId > 0){
-            $this->PlaceModel->assignPlace();
-            $this->processResult($this->PlayerModel);
-        }
-
-    }
 
     /**
      * 进入游戏玩家池
@@ -200,153 +192,20 @@ class Texas extends CI_Controller {
         $this->cache->save("scene_".$this->sceneId."_players",$this->players,3600);
     }
 
-    /**
-     * 玩家坐下
-     */
-    public function playerSeat(){
-
-    }
 
     /**
      * 测试桌面上的牌面
      */
     public function testBordPoker(){
-        error_reporting(0); //抑制错误输出
-        $this->benchmark->mark('code_start');   //基准测试开始
-        $testPokers = $this->input->post("pokers");
-
-        //检测牌数量是否大于2张
-        if(count($testPokers) <2 ) {
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit("牌数量不足");
-        }
-
-        //检测牌面是否【同花大顺】
-        $isRoyalFlush = $this->isRoyalFlush($testPokers);
-        if($isRoyalFlush["result"] == true){
-            echo "同花大顺";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【同花顺】
-        $isStraightFlush = $this->isStraightFlush($testPokers);
-        if($isStraightFlush["result"] == true){
-            echo "同花顺";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【四条】
-        $isFourOfaKind = $this->isFourOfaKind($testPokers);
-        if($isFourOfaKind["result"] == true){
-            echo "四条";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【满堂红】
-        $isFullHouse = $this->isFullHouse($testPokers);
-        if($isFullHouse["result"] == true){
-            echo "满堂红";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【同花】
-        $isFlush = $this->isFlush($testPokers);
-        if($isFlush["result"] == true){
-            echo "同花";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【顺子】
-        $isStraight = $this->isStraight($testPokers);
-        if($isStraight["result"] == true){
-            echo "顺子";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【三条】
-        $isThreeOfaKind = $this->isThreeOfaKind($testPokers);
-        if($isThreeOfaKind["result"] == true){
-            echo "三条";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【两对】
-        $isTwoPairs = $this->isTwoPairs($testPokers);
-        if($isTwoPairs["result"] == true){
-            echo "两对";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【一对】
-        $isOnePair = $this->isOnePair($testPokers);
-        if($isOnePair["result"] == true){
-            echo "一对";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-        //检测牌面是否【高牌】
-        $isHighCard = $this->isHighCard($testPokers);
-        if($isHighCard["result"] == true){
-            echo "高牌";
-            $this->benchmark->mark('code_end');
-            echo " 用时：".$this->benchmark->elapsed_time('code_start', 'code_end');
-            exit();
-        }
-
-
+        $result = $this->GameModel->showPKResult();
+        $this->processResult($result);
     }
 
     /**
      * A 开始新牌局
      */
     public function newDeal(){
-        //TODO 需要增加牌局控制的逻辑，只有未开始或已经结束的牌局才能开始新牌局
-
-        //生成新的扑克牌（4 x 13 的二维数组）
-        /**
-         * 采用二进制位来表示牌面和花色
-         * 黑桃 = 128 = 1000 0000
-         * 红桃 = 64  = 0100 0000
-         * 梅花 = 32  = 0010 0000
-         * 方块 = 16  = 0001 0000
-         *
-         * 后四位按顺序表面牌值，并与前四位组合
-         * 黑桃 2 = 128 + 1 = 1000 0010
-         * 1 与 ace 在检测顺子的情况下相等
-         * 依此类推
-         */
-        $newPoker = array(
-            17,18,19,20,21,22,23,24,25,26,27,28,29,30,                 //方块 1 - A
-            33,34,35,36,37,38,39,40,41,42,43,44,45,46,                 //梅花 1 - A
-            65,66,67,68,69,70,71,72,73,74,75,76,77,78,                 //红桃 1 - A
-            129,130,131,132,133,134,135,136,137,138,139,140,141,142     //黑桃 1 - A
-        );
-
-        //随机生成庄家手中的牌序
-        shuffle($newPoker);
-        $this->bankerPoker = $newPoker;
-
-        //向所有玩家发放底牌
-        $this->preFlop();
+        $this->GameModel->newGame();
 
     }
 
@@ -361,28 +220,77 @@ class Texas extends CI_Controller {
      * 4、其它玩家 players 数组
      *
      * #### 游戏信息类 ####
-     * 5、当前押注圈 BettingRounds
-     * 6、押注信息 playersBetLogs
+     * 5、当前押注圈 bettingRounds
+     * 6、押注信息 betLog
      * 7、当前牌局彩池 jackpot
-     * 8、当前局游戏历史
+     * 8、公牌 board
+     * 9、玩家手上的牌 playersPoker
+     *
+     * ### 玩家信息 ###
+     * 10、剩余金额 wallet
+     * @param null $statusName 状态名，如果为空显示所有状态
+     * @return array
      */
-    public function statusReport(){
+    public function statusReport($statusName = NULL,$json = FALSE){
+        $data = array(
+            /* 场地信息类 */
+            "spaceId" => $this->PlaceModel->placeId,
+            "placeStatus" => $this->PlaceModel->placeStatus,
+            "sceneId" => $this->PlaceModel->sceneId,
+            "sceneStatus" => $this->PlaceModel->sceneStatus,
+            "player" => $this->PlayerModel,
+            /* 游戏信息类 */
+            "bettingRounds" => $this->GameModel->bettingRounds,
+            "betLog" => $this->GameModel->betLog,
+            "jackpot" => $this->GameModel->jackpot,
+            "board" => $this->GameModel->board,
+            "playersPoker" => $this->GameModel->playersPoker,        //TODO 电脑和登录用户手上的牌，正式环境需要删除
+            "computerPoker" => $this->GameModel->playersPoker[1],        //TODO 电脑手上的牌，正式环境需要删除
+            "playerPoker" => $this->GameModel->playersPoker[$this->PlayerModel->playerId],        //当前登录用户手上的牌
 
+            /* 玩家信息 */
+            "wallet" => $this->PlayerModel->wallet,
+        );
+
+
+        if($statusName != NULL){
+            $returnData = $data[$statusName];
+        }else{
+            $returnData = $data;
+        }
+
+        if($json == TRUE){
+            $this->processResult(array("$statusName"=>$returnData));
+        }
+
+        return $returnData;
     }
 
     /**
      * 玩家下注
      */
-    public function bid(){
+    public function bet(){
         $money = $this->input->post("money");
-        $this->GameModel->bid($this->PlayerModel,$money);
+        $this->GameModel->bet($this->PlayerModel,$money);
         echo json_encode($money);
     }
 
-    public function finishBid(){
-        $this->GameModel->finishBid();
+    /**
+     * 完成下注并返回牌面信息
+     */
+    public function finishBet(){
+        $result = $this->GameModel->finishBet();
+        $this->processResult($result);
     }
 
+    /**
+     * 检测所有玩家手上的牌
+     * 以及比较结果
+     */
+    public function showPKResult(){
+        $result = $this->GameModel->showPKResult();
+        var_dump($result);
+    }
 
     /**
      * C 押注圈 - 每一个牌局可分为四个押注圈。每一圈押注由按钮（庄家）左侧的玩家开始叫注。

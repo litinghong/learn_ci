@@ -27,7 +27,7 @@
     <form name="form1" action="/index.php/Texas" method="post" >
         <div id="bankerArea">
             庄家操作：
-            <input type="button" value="手动开局" class="normalButton" onclick="testStartScene();">
+            <input type="button" value="开始新游戏" class="normalButton" onclick="newDeal();">
             <input type="button" value="发牌" class="normalButton">
             <input type="button" value="测试桌上牌面" class="normalButton" onclick="testBordPoker()">
             <input type="button" value="清空桌面" class="normalButton" onclick="testEmptyBord()">
@@ -36,14 +36,14 @@
             <!--场景信息-->
             <?php if(isset($player)){ ?>
             <div id="scene">
-                <dl>
-                    <dt >当前场：</dt><dd><?php echo $placeId;?></dd>
-                    <dt >当前次：</dt><dd><?php echo $sceneId;?></dd>
-                    <dt >玩家人数：</dt><dd><?php echo count($players);?></dd>
-                    <dt >围观人数：</dt><dd><?php echo count($players_hold);?></dd>
-                    <dt >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：</dt><dd><?php echo $bettingRounds;?></dd>
-                    <dt >当前奖池：</dt><dd id="jackpot"><?php echo $jackpot;?></span></dd>
-                </dl>
+                <ul>
+                    <li >当前场：<?php echo $placeId;?></li>
+                    <li >当前次：<?php echo $sceneId;?></li>
+                    <li >玩家人数：<?php echo count($players);?></li>
+                    <li >围观人数：<?php echo count($players_hold);?></li>
+                    <li >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：<?php echo $bettingRounds;?></li>
+                    <li >当前奖池：<?php echo $jackpot;?></li>
+                </ul>
                 <div>
                     我的信息：
                     <font style="color:red;"><?php if(!empty($player))echo $player->fullName;?></font>
@@ -68,10 +68,18 @@
             <input type="button" value="进场 entryPlace" class="normalButton" onclick="entryPlace()">
             <input type="button" value="登录 login" class="normalButton" onclick="login()">
             <input type="button" value="坐下" class="normalButton">
-            <input type="button" value="下注" class="normalButton" onclick="bid()">
+            <input type="button" value="下注" class="normalButton" onclick="bet()">
+            <input type="button" value="完成下注" class="normalButton" onclick="finishBet()">
+            <input type="button" value="刷新公共牌" class="normalButton" onclick="loadBoard()">
+            <input type="button" value="刷新我的底牌" class="normalButton" onclick="loadMyPokers()">
+        </div>
+        <!--电脑的底牌-->
+        <div id="computerPokers" class="pokerRow">
+            <div>电脑的底牌</div>
+            <div id="computerDesk"></div>
         </div>
         <!--测试区域-->
-        <div id="testArea">
+        <div id="testArea" style="display: none">
             <div id="poker1" class="pokerRow">
                 <input type="button" value="♦2" tag="18" class="pokerCard">
                 <input type="button" value="♦3" tag="19" class="pokerCard">
@@ -146,6 +154,8 @@
 <script language="JavaScript">
     //桌面上的扑克
     var deskPokers = [];
+    var myPokers = [];
+    var comPokers =[];
 
     /**绑定扑克的点击操作**/
     $(document).ready(function(){
@@ -168,8 +178,8 @@
     /**测试桌面上的牌面**/
     function testBordPoker(){
         console.log(deskPokers);
+        /** 测试我的牌面 **/
 
-        //向服务器发送请求
         $.post("/index.php/Texas/testBordPoker",{"pokers":deskPokers},function(result){
             $(checkResult).text(result);
         },"text");
@@ -195,12 +205,13 @@
     function entryPlace(){
         //向服务器发送请求
         $.post("/index.php/Texas/entryPlace",null,function(result){
-            $(checkResult).text(result);
-        },"text");
+            var statusReport = result.game;
+            console.log(statusReport);
+        },"json");
     }
 
     /**点击手动开场 TODO 测试用**/
-    function testStartScene(){
+    function newDeal(){
         //向服务器发送请求
         $.post("/index.php/Texas/newDeal",null,function(result) {
             //TODO 检测服务器返回是否异常
@@ -214,12 +225,70 @@
         },"json");
     }
 
+    /** 载入桌面公共牌 **/
+    function loadBoard(){
+        //向服务器发送请求
+        $.post("/index.php/Texas/statusReport/board/true",null,function(result){
+            var board =  result.game.board;
+            for(var i=0;i<board.length;i++){
+                var tag = board[i];
+                var poker = $(".pokerCard[tag='"+ tag +"']").clone();
+                $("#pokersPlace").append(poker);
+                //加到桌面上的扑克数组
+                deskPokers.push(tag);
+            }
+
+        },"json");
+    }
+
+    /** 载入我的底牌 **/
+    function loadMyPokers(){
+        $("#myDesk").empty();
+        //向服务器发送请求
+        $.post("/index.php/Texas/statusReport/playerPoker/true",null,function(result){
+            var playerPoker =  result.game.playerPoker;
+            for(var i=0;i<playerPoker.length;i++){
+                var pokerCard = playerPoker[i];
+                var pokerElement = $(".pokerCard[tag='"+ pokerCard.num +"']").clone();
+                $("#myDesk").append(pokerElement);
+
+            }
+
+        },"json");
+
+        //顺便载入电脑的底牌
+        loadComputerPokers();
+    }
+
+    /** 载入电脑的底牌 **/
+    function loadComputerPokers(){
+        $("#computerDesk").empty();
+        //向服务器发送请求
+        $.post("/index.php/Texas/statusReport/computerPoker/true",null,function(result){
+            var playerPoker =  result.game.computerPoker;
+            for(var i=0;i<playerPoker.length;i++){
+                var pokerCard = playerPoker[i];
+                var pokerElement = $(".pokerCard[tag='"+ pokerCard.num +"']").clone();
+                $("#computerDesk").append(pokerElement);
+
+            }
+
+        },"json");
+    }
     /**下注**/
-    function bid(){
+    function bet(){
         var bidMoney=prompt("请输入下流金额","10");
 
         //向服务器发送请求
-        $.post("/index.php/Texas/bid",{"money":bidMoney},function(result){
+        $.post("/index.php/Texas/bet",{"money":bidMoney},function(result){
+            $(checkResult).text(result);
+        },"json");
+    }
+
+    /**完成下注**/
+    function finishBet(){
+        //向服务器发送请求
+        $.post("/index.php/Texas/finishBet",null,function(result){
             $(checkResult).text(result);
         },"json");
     }

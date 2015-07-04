@@ -116,7 +116,22 @@ class PlayerModel extends CI_Model{
         if($playerInfo instanceof PlayerModel){
             return $playerInfo;
         }else{
-            return NULL;    //没有用户
+            //没有用户,从数据库中读取
+            $query = $this->db->get_where("players","id='$playerId'");
+            $rows = $query->result_array();
+            if(count($rows) > 0){
+                $row = array_pop($rows);
+                $newPlayerModel = new PlayerModel();
+
+                $newPlayerModel->playerId = $row["id"];
+                $newPlayerModel->fullName = $row["fullName"];
+                $newPlayerModel->wallet = $row["wallet"];
+                $newPlayerModel->currentPlaceId = 0;
+                $newPlayerModel->currentSceneId = 0;
+                $newPlayerModel->isPlaying = TRUE;
+
+                return $newPlayerModel;
+            }
         }
 
     }

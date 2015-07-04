@@ -14,23 +14,38 @@ class GameModel extends CI_Model{
      */
     private $place;
 
-    //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
+    //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈 5=游戏结束
     public $bettingRounds =0;
 
-    //当前局游戏历史
+    /**
+     * @var array 当前局游戏历史
+     */
     public $gameHistory = array();
 
-    //当前牌局彩池
+    /**
+     * @var int 当前牌局彩池
+     */
     public $jackpot = 0;
 
-    //庄家手中未发的牌
+    /**
+     * @var array 庄家手中未发的牌
+     */
     public $bankerPoker = array();
 
-    //台面  泛指桌上的五张公共牌
+    /**
+     * @var array 台面  泛指桌上的五张公共牌
+     */
     public $board = array();
 
-    //玩家手中的牌面
+    /**
+     * @var array 玩家手中的牌面
+     */
     public $playersPoker = array();
+
+    /**
+     * @var array 玩家押注历史信息
+     */
+    public $betLog = array();
 
     function __construct()
     {
@@ -43,7 +58,7 @@ class GameModel extends CI_Model{
      * 通过场地信息初始化游戏类
      * @param PlaceModel $placeModel
      */
-    public function init(PlaceModel $placeModel){
+    public function init(PlaceModel &$placeModel){
         $this->place = $placeModel;
         if($placeModel->placeId >0){
             //读取缓存中当前游戏信息
@@ -61,8 +76,6 @@ class GameModel extends CI_Model{
 
             //如果可进行游戏则马上开始
             if($this->canPlay() == TRUE) $this->newGame();
-            //var_dump($this->bankerPoker);
-            var_dump($this->playersPoker);
 
             return TRUE;
         }
@@ -74,7 +87,9 @@ class GameModel extends CI_Model{
      * 缓存游戏信息
      */
     function saveGame(){
-        $this->cache->save("game_".$this->place->placeId."_".$this->place->sceneId,$this,3600);
+        if(isset($this->place)){
+            $this->cache->save("game_".$this->place->placeId."_".$this->place->sceneId,$this,3600);
+        }
     }
 
 
@@ -152,7 +167,7 @@ class GameModel extends CI_Model{
      * @param $money
      * @throws Exception
      */
-    public function bid(PlayerModel $playerModel,$money){
+    public function bet(PlayerModel $playerModel,$money){
         //检测用户钱包够不够钱
         if($playerModel->wallet < $money){
             throw new Exception("钱不够了");
@@ -161,6 +176,9 @@ class GameModel extends CI_Model{
         //将钱扣掉
         $playerModel->wallet -= $money;     //TODO 直接存入数据库
 
+        //将钱放入押注历史(以押注圈为主键)
+        $this->betLog[$this->bettingRounds] = $money;
+
         //将钱放入奖池
         $this->jackpot += $money;
     }
@@ -168,7 +186,7 @@ class GameModel extends CI_Model{
     /**
      * 完成下注
      */
-    public function finishBid(){
+    public function finishBet(){
         //如果还有下一圈，推到下一圈
         if($this->bettingRounds < 4) {
             $this->bettingRounds++;
@@ -202,21 +220,83 @@ class GameModel extends CI_Model{
      * C 发放三张公牌
      */
     private function sendPublicPoker_one(){
-        //TODO
+        $this->board = array();     //清空
+
+        //从庄家用中抽出三张
+        for($i=0;$i<3;$i++){
+            $poker = array_pop($this->bankerPoker);
+            $this->board[] = $poker;
+        }
+
+        //返回公牌
+        return $this->board;
     }
 
     /**
      * D 第四张公共牌
      */
     private function sendPublicPoker_two(){
-        //TODO
+        //从庄家用中抽出一张
+        $poker = array_pop($this->bankerPoker);
+        $this->board[] = $poker;
+
+        //返回公牌
+        return $this->board;
     }
 
     /**
      * D 第五张公共牌
      */
     private function sendPublicPoker_tree(){
-        //TODO
+        //从庄家用中抽出一张
+        $poker = array_pop($this->bankerPoker);
+        $this->board[] = $poker;
+
+        //返回公牌
+        return $this->board;
+    }
+
+
+    /**
+     * 检测所有玩家手上的牌
+     * 以及比较结果
+     */
+    public function showPKResult(){
+        error_reporting(0);
+        $playerPokers = array();
+        $computerPokers = array();
+
+        //添加电脑玩家的牌
+        foreach($this->playersPoker[1] as $poker){
+            $computerPokers[] = $poker["num"];
+        }
+
+        //添加游戏玩家的牌
+        foreach($this->playersPoker[$this->place->currentPlayer->playerId] as $poker){
+            $playerPokers[] = $poker["num"];
+        }
+
+        //附加上桌面公共牌
+        foreach($this->board as $pokerNum){
+            $playerPokers[] = $pokerNum;
+            $computerPokers[] = $pokerNum;
+        }
+
+        //检测电脑玩家的牌
+        $computerResult =  $this->testBordPoker($computerPokers);
+
+        //检测游戏玩家的牌
+        $playerResult =  $this->testBordPoker($playerPokers);
+
+        //比较两个的pk结果
+        $winner = ($playerResult["result"] == $computerResult["result"])?"both":($playerResult["result"] > $computerResult["result"] ? "player":"computer");
+        $returnArray = array(
+            "playerResult" => $playerResult,
+            "computerResult" => $computerResult,
+            "winner" => $winner
+        );
+
+        return $returnArray;
     }
 
     /**
@@ -268,4 +348,624 @@ class GameModel extends CI_Model{
         //返回牌面
         return $flowerType . $pokerNum;
     }
+
+    /**
+     * ########################################
+     * #            牌面检测程序              #
+     * ########################################
+     */
+
+    /**
+     * 测试桌面上的牌面
+     * 返回检测结果：
+     * result -1 无结果 10=同花大顺 9=同花顺 8=四条 7=满堂红 6=同花 5=顺子 4=三条 3=两对 2=一对 1=高牌
+     * @param $testPokers
+     * @return array
+     */
+    public function testBordPoker($testPokers){
+
+        //检测牌数量是否大于2张
+        if(count($testPokers) <2 ) {
+            return array(
+                "result" => -1,
+                "message" => "牌数量不足",
+                "error" => 1
+            );
+        }
+
+        //检测牌面是否【同花大顺】
+        $isRoyalFlush = $this->isRoyalFlush($testPokers);
+        if($isRoyalFlush["result"] == true){
+            return array(
+                "result" => 10,
+                "message" => "同花大顺",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【同花顺】
+        $isStraightFlush = $this->isStraightFlush($testPokers);
+        if($isStraightFlush["result"] == true){
+            return array(
+                "result" => 9,
+                "message" => "同花顺",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【四条】
+        $isFourOfaKind = $this->isFourOfaKind($testPokers);
+        if($isFourOfaKind["result"] == true){
+            return array(
+                "result" => 8,
+                "message" => "四条",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【满堂红】
+        $isFullHouse = $this->isFullHouse($testPokers);
+        if($isFullHouse["result"] == true){
+            return array(
+                "result" => 7,
+                "message" => "满堂红",
+                "error" => 0
+            );
+
+        }
+
+        //检测牌面是否【同花】
+        $isFlush = $this->isFlush($testPokers);
+        if($isFlush["result"] == true){
+            return array(
+                "result" => 6,
+                "message" => "同花",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【顺子】
+        $isStraight = $this->isStraight($testPokers);
+        if($isStraight["result"] == true){
+            return array(
+                "result" => 5,
+                "message" => "顺子",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【三条】
+        $isThreeOfaKind = $this->isThreeOfaKind($testPokers);
+        if($isThreeOfaKind["result"] == true){
+            return array(
+                "result" => 4,
+                "message" => "三条",
+                "error" => 0
+            );
+
+        }
+
+        //检测牌面是否【两对】
+        $isTwoPairs = $this->isTwoPairs($testPokers);
+        if($isTwoPairs["result"] == true){
+            return array(
+                "result" => 3,
+                "message" => "两对",
+                "error" => 0
+            );
+        }
+
+        //检测牌面是否【一对】
+        $isOnePair = $this->isOnePair($testPokers);
+        if($isOnePair["result"] == true){
+            return array(
+                "result" => 2,
+                "message" => "一对",
+                "error" => 0
+            );
+
+        }
+
+        //检测牌面是否【高牌】
+        $isHighCard = $this->isHighCard($testPokers);
+        if($isHighCard["result"] == true){
+            return array(
+                "result" => 1,
+                "message" => "高牌",
+                "error" => 0
+            );
+        }
+
+
+    }
+
+
+    /**
+     * 检测牌面是否【同花大顺】
+     * @param $pokers array 共7张牌
+     * @return array|bool 返回的数组结构
+     * {
+     *      "confirms":[67,68,69,70,71],       //命中的同花顺牌
+     *      "result":true                      //是否命中
+     * }
+     */
+    function isRoyalFlush($pokers){
+        //TODO 测试
+        /*
+        $pokers = $_GET["pokers"];
+        if(!empty($pokers)){
+            $pokers = explode(",",$pokers);
+        }else{
+            $pokers=array(23,24,41,42,43,44,45);
+        }
+        */
+
+        /**规则： 花色相同 + 连号 + 有一张A **/
+
+        /**可能的组合**/
+        $possible1 = array(26,27,28,29,30);
+        $possible2 = array(42,43,44,45,46);
+        $possible3 = array(74,75,76,77,78);
+        $possible4 = array(138,139,140,141,142);
+
+        $p1 = array_values(array_intersect($pokers,$possible1));
+        if(count($p1) == 5){
+            $returnArray = array(
+                "confirms"=>$p1,
+                "result" => true
+            );
+            return $returnArray;
+        }
+        $p2 = array_values(array_intersect($pokers,$possible2));
+        if(count($p2) == 5){
+            $returnArray = array(
+                "confirms"=>$p2,
+                "result" => true
+            );
+            return $returnArray;
+        }
+        $p3 = array_values(array_intersect($pokers,$possible3));
+        if(count($p3) == 5){
+            $returnArray = array(
+                "confirms"=>$p3,
+                "result" => true
+            );
+            return $returnArray;
+        }
+        $p4 = array_values(array_intersect($pokers,$possible4));
+        if(count($p4) == 5){
+            $returnArray = array(
+                "confirms"=>$p4,
+                "result" => true
+            );
+            return $returnArray;
+        }
+
+        $returnArray = array(
+            "confirms"=>null,
+            "result" => false
+        );
+
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【同花顺】
+     * @param $pokers
+     * @return array
+     */
+    function isStraightFlush($pokers){
+        //TODO 测试
+        //if($pokers == null) $pokers=array(17,34,68,67,69,71,70);
+        //有Ace的情况下，Ace当1
+        if(in_array(30,$pokers)) $pokers[] = "17";
+        if(in_array(46,$pokers)) $pokers[] = "33";
+        if(in_array(78,$pokers)) $pokers[] = "65";
+        if(in_array(142,$pokers)) $pokers[] = "129";
+
+        /**规则： 花色相同 + 连号**/
+        $pokerTemp = array();   //用于临时存放计算
+        /**第一轮：抽取所有花色相同的牌**/
+        foreach($pokers as $poker){
+            if(($poker & 16) > 0){
+                //方块
+                $pokerTemp[16][] = $poker;
+            }elseif(($poker & 32) > 0){
+                //梅花
+                $pokerTemp[32][] = $poker;
+            }elseif(($poker & 64) > 0){
+                //黑桃
+                $pokerTemp[64][] = $poker;
+            }elseif(($poker & 128) > 0){
+                //黑桃
+                $pokerTemp[128][] = $poker;
+            }
+        }
+
+
+        /**第二轮：计算同一花色中有无达到5张的**/
+        $possibleTemp = array();  //有可能是同花顺的，可进入第三轮
+        $confirms = array();      //确定为同花顺的牌
+        foreach($pokerTemp as $temp){
+            if(count($temp) >= 5){
+                $possibleTemp = $temp;
+            }
+        }
+        if(empty($possibleTemp)) return false;
+
+        /**第三轮：连号计算**/
+        // 5个数连接计算公式 (n1+n2+n3+n4+n5)-(min(n)-1)*5 == 15 ? true : false ;
+
+        //将数组进行顺序
+        sort($possibleTemp);
+
+        //考虑到有可能超过5个达到7个的情况，需要进行3次计算
+        $result = false;
+        for($i=0;$i<3;$i++){
+            if($result == false){
+                //取5个
+                $temp = array();
+                for($j=$i;$j<$i+5;$j++){
+                    $temp[] = $possibleTemp[$j];
+                }
+                $min = $temp[0];    //最小值
+                $max = $temp[count($temp) - 1];      //最大值
+                //连号情况下最大与最小差4
+                $chckeDiff = $max - $min;
+                if($chckeDiff ===4 ){
+                    $result = (array_sum($temp)- ($min-1)*5) === 15 ? true : false;
+                    if($result == true) $confirms = $temp;
+                }
+
+            }
+
+        }
+
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【四条】
+     * @param $pokers
+     * @return array
+     */
+    function isFourOfaKind($pokers){
+        //TODO 测试
+        //$pokers=array(18,34,66,130,38,24,27);
+
+        //去除高四位
+        $newPokers = array();
+        $pokersGroup = array(); //以低四位进行分组
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            $newPokers[$poker] = $low4;
+            $pokersGroup[$low4][]=$poker;
+        }
+
+        //判断牌中是否有4张一样的
+        $confirms = array();      //确定为【四条】的牌
+        $result = false;
+        foreach($pokersGroup as $group){
+            if($result == false){
+                if(count($group) >= 4){
+                    $confirms = $group;
+                    $result = true;
+                }
+            }
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+
+    }
+
+    /**
+     * 检测牌面是否【满堂红】 三张同一点数的牌，加一对其他点数的牌。
+     * @param $pokers
+     * @return array
+     */
+    function isFullHouse($pokers){
+        //TODO 测试
+        //$pokers=array(18,34,66,26,42,28,77);
+
+        //去除高四位
+        $newPokers = array();
+        $pokersGroup = array(); //以低四位进行分组
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            $newPokers[$poker] = $low4;
+            $pokersGroup[$low4][]=$poker;
+        }
+
+        //判断牌中是否有3张一样的
+        $confirms3 = array();      //确定为有三张的牌
+        $confirms2 = array();      //确定为有两张的牌
+        $result = false;
+        foreach($pokersGroup as $group){
+            if($result == false){
+                if(count($group) === 3){
+                    $confirms3 = $group;
+                }elseif(count($group) === 2){
+                    $confirms2 = $group;
+                }
+                if(!empty($confirms2) && !empty($confirms3)){
+                    $result = true;
+                }
+            }
+        }
+
+
+
+        //返回
+        $returnArray = array(
+            "confirms"=>array_merge($confirms3 ,$confirms2),
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【同花】
+     * 同花（Flush，简称“花”：五张同一花色的牌。
+     * @param $pokers array
+     * @return array
+     */
+    function isFlush($pokers){
+        //TODO 测试
+        //$pokers=array(17,19,20,22,27,28,29);
+
+        //以花色（高四位）作为分组
+        $group = array();
+        foreach($pokers as $poker){
+            if(($poker & 128) > 0){
+                $group[128][] = $poker;
+            }elseif(($poker & 64) > 0){
+                $group[64][] = $poker;
+            }elseif(($poker & 32) > 0){
+                $group[32][] = $poker;
+            }elseif(($poker & 16) > 0){
+                $group[16][] = $poker;
+            }
+        }
+
+        //分析是否有五张或以上同一花色的牌
+        $result = false;
+        $confirms = array();
+        foreach($group as $pokerItems){
+            if(count($pokerItems) >= 5){
+                $result = true;
+                $confirms = $pokerItems;
+            }
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【顺子】
+     * @param $pokers
+     * @return array
+     */
+    function isStraight($pokers){
+        //TODO 测试
+        //$pokers=array(18,35,68,133,22,76,34);
+        //有Ace的情况下，Ace当1
+        if(in_array(30,$pokers)) $pokers[] = "17";
+        if(in_array(46,$pokers)) $pokers[] = "33";
+        if(in_array(78,$pokers)) $pokers[] = "65";
+        if(in_array(142,$pokers)) $pokers[] = "129";
+
+        //去除高四位，并忽略低位值相同的，如 2 3 4 4 5 6
+        $newPokers = array();
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            if(!in_array($low4,$newPokers)){
+                $newPokers[$poker] = $low4;
+            }
+        }
+
+        $confirms = array();      //确定为顺子的牌
+        /**第三轮：连号计算**/
+        // 5个数连接计算公式 (n1+n2+n3+n4+n5)-(min(n)-1)*5 == 15 ? true : false ;
+        //将数组进行顺序
+        asort($newPokers);
+
+        //考虑到有可能超过5个达到7个的情况，需要进行3次计算
+        $result = false;
+        $newPokersKeys = array_keys($newPokers);    //获取键值
+        for($i=0;$i<3;$i++){
+            if($result == false){
+                //取5个
+                $temp = array();
+                for($j=$i;$j<$i+5;$j++){
+                    $key = $newPokersKeys[$j];
+                    $temp[$key] = $newPokers[$key];
+                }
+                $min = $temp[$newPokersKeys[$i]];    //最小值
+                $max = $temp[$newPokersKeys[4 + $i]];      //最大值
+
+                //连号情况下最大与最小差4
+                $chckeDiff = $max - $min;
+                if($chckeDiff ===4 ){
+                    $result = (array_sum($temp)- ($min-1)*5) === 15 ? true : false;
+                    if($result == true){
+                        //替换回原来的牌(有高四位的)
+                        $confirms = array_keys($temp);
+
+                    }
+                }
+            }
+
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【三条】
+     * 有三张同一点数的牌
+     * @param $pokers
+     * @return array
+     */
+    function isThreeOfaKind($pokers){
+        //TODO 测试
+        //$pokers=array(18,34,66,131,38,24,27);
+
+        //去除高四位
+        $newPokers = array();
+        $pokersGroup = array(); //以低四位进行分组
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            $newPokers[$poker] = $low4;
+            $pokersGroup[$low4][]=$poker;
+        }
+
+        //判断牌中是否有3张一样的
+        $confirms = array();      //确定为【三条】的牌
+        $result = false;
+        foreach($pokersGroup as $group){
+            if($result == false){
+                if(count($group) >= 3){
+                    $confirms = $group;
+                    $result = true;
+                }
+            }
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【两对】
+     * @param $pokers
+     * @return array
+     */
+    function isTwoPairs($pokers){
+        //TODO 测试
+        //$pokers=array(18,34,67,26,42,28,77);
+
+        //去除高四位
+        $newPokers = array();
+        $pokersGroup = array(); //以低四位进行分组
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            $newPokers[$poker] = $low4;
+            $pokersGroup[$low4][]=$poker;
+        }
+
+        //判断牌中是否有2对一样的
+        $confirms = array();      //确定为有两对牌
+        $result = false;
+        foreach($pokersGroup as $group){
+            if($result == false){
+                if(count($group) === 2){
+                    $confirms[] = $group;
+                }
+                if(count($confirms) === 2 ){
+                    $result = true;
+                }
+            }
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+    /**
+     * 检测牌面是否【一对】
+     * @param $pokers
+     * @return array
+     */
+    function isOnePair($pokers){
+        //TODO 测试
+        //$pokers=array(18,34,67,26,42,28,77);
+
+        //去除高四位
+        $newPokers = array();
+        $pokersGroup = array(); //以低四位进行分组
+        foreach($pokers as $poker){
+            $low4 = $poker & 15;
+            $newPokers[$poker] = $low4;
+            $pokersGroup[$low4][]=$poker;
+        }
+
+        //判断牌中是否有1对一样的
+        $confirms = array();      //确定为有一对的牌
+        $result = false;
+        foreach($pokersGroup as $group){
+            if($result == false){
+                if(count($group) === 2){
+                    $confirms = $group;
+                    $result = true;
+                }
+            }
+        }
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$confirms,
+            "result" => $result
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+
+    /**
+     * 检测牌面是否【高牌】
+     * 注：此函数需在以上牌面检测完后才使用，因为这个函数不参与检测，只返回最高点数
+     * 不符合上面任何一种牌型的牌型，由单牌且不连续不同花的组成，以点数决定大小
+     * @param $pokers
+     * @return array
+     */
+    function isHighCard($pokers){
+        //TODO 测试
+        //$pokers=array(140,18,26,27,33,38,40);
+        sort($pokers);
+        $maxPoker = array_pop($pokers);
+
+        //返回
+        $returnArray = array(
+            "confirms"=>$maxPoker,
+            "result" => true
+        );
+        //echo json_encode($returnArray);
+        return $returnArray;
+    }
+
+
 }
