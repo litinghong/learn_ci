@@ -68,7 +68,7 @@ class Texas extends CI_Controller {
         $this->load->library('session');
         $this->load->driver('cache', array('adapter' => 'apc', 'backup' => 'file'));    //TODO windows下的memcached没安装成功，先用着这个
 
-        //$this->cleanGame(); //TODO 清理所有缓存和session
+
 
         /**1、玩家信息（我）**/
         //获取session中当前登录用户id到
@@ -150,6 +150,7 @@ class Texas extends CI_Controller {
         if($result == TRUE){
             //保存session
             $this->session->set_userdata('playerId',$this->PlayerModel->playerId);
+
             //单机游戏直接进场
             $this->PlaceModel->init($this->PlayerModel);
             $this->PlaceModel->assignPlace();
@@ -165,7 +166,7 @@ class Texas extends CI_Controller {
      * 退出登录
      */
     public function logout(){
-        //TODO 退出登录
+        $this->cleanGame(); //清理所有缓存和session
     }
 
 
@@ -234,7 +235,7 @@ class Texas extends CI_Controller {
     public function statusReport($statusName = NULL,$json = FALSE){
         $data = array(
             /* 场地信息类 */
-            "spaceId" => $this->PlaceModel->placeId,
+            "placeId" => $this->PlaceModel->placeId,
             "placeStatus" => $this->PlaceModel->placeStatus,
             "sceneId" => $this->PlaceModel->sceneId,
             "sceneStatus" => $this->PlaceModel->sceneStatus,
@@ -244,24 +245,28 @@ class Texas extends CI_Controller {
             "betLog" => $this->GameModel->betLog,
             "jackpot" => $this->GameModel->jackpot,
             "board" => $this->GameModel->board,
-            "playersPoker" => $this->GameModel->playersPoker,        //TODO 电脑和登录用户手上的牌，正式环境需要删除
-            "computerPoker" => $this->GameModel->playersPoker[1],        //TODO 电脑手上的牌，正式环境需要删除
-            "playerPoker" => $this->GameModel->playersPoker[$this->PlayerModel->playerId],        //当前登录用户手上的牌
+            "playersPoker" => isset($this->GameModel->playersPoker)?$this->GameModel->playersPoker:null,        //TODO 电脑和登录用户手上的牌，正式环境需要删除
+            "computerPoker" => isset($this->GameModel->playersPoker[1])?$this->GameModel->playersPoker[1]:null,        //TODO 电脑手上的牌，正式环境需要删除
+            "playerPoker" => isset($this->GameModel->playersPoker[$this->PlayerModel->playerId])?$this->GameModel->playersPoker[$this->PlayerModel->playerId]:null,        //当前登录用户手上的牌
 
             /* 玩家信息 */
             "wallet" => $this->PlayerModel->wallet,
         );
 
 
-        if($statusName != NULL){
-            $returnData = $data[$statusName];
-        }else{
+        if($statusName == NULL || $statusName =="false"){
             $returnData = $data;
+            if($json == TRUE){
+                $this->processResult($returnData);
+            }
+        }else{
+            $returnData = $data[$statusName];
+            if($json == TRUE){
+                $this->processResult(array("$statusName"=>$returnData));
+            }
         }
 
-        if($json == TRUE){
-            $this->processResult(array("$statusName"=>$returnData));
-        }
+
 
         return $returnData;
     }

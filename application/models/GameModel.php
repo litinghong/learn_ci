@@ -136,6 +136,9 @@ class GameModel extends CI_Model{
         //向所有玩家发放底牌
         $this->preFlop();
 
+        //设置玩家在玩的状态
+        $this->place->currentPlayer->isPlaying = true;
+
         //设置当前游戏进入【底牌圈】
         $this->bettingRounds = 1;
     }

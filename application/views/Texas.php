@@ -1,3 +1,4 @@
+<?php error_reporting(0) ?>
 <!DOCTYPE html>
 <html>
 <head lang="en">
@@ -34,26 +35,24 @@
         </div>
         <div id="board">
             <!--场景信息-->
-            <?php if(isset($player)){ ?>
+
             <div id="scene">
                 <ul>
-                    <li >当前场：<?php echo $placeId;?></li>
-                    <li >当前次：<?php echo $sceneId;?></li>
-                    <li >玩家人数：<?php echo count($players);?></li>
-                    <li >围观人数：<?php echo count($players_hold);?></li>
-                    <li >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：<?php echo $bettingRounds;?></li>
-                    <li >当前奖池：<?php echo $jackpot;?></li>
+                    <li >当前场：<span id="placeId"><?php echo $placeId;?></span></li>
+                    <li >当前次：<span id="sceneId"><?php echo $sceneId;?></span></li>
+                    <li >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：<span id="bettingRounds"><?php echo $bettingRounds;?></span></li>
+                    <li >当前奖池：<span id="jackpot"><?php echo $jackpot;?></span></li>
                 </ul>
                 <div>
                     我的信息：
-                    <font style="color:red;"><?php if(!empty($player))echo $player->fullName;?></font>
-                    钱包：<?php echo $player->wallet?>
-                    场地：<?php echo $player->currentPlaceId?>
-                    场次：<?php echo $player->currentSceneId?>
-                    在玩：<?php echo $player->isPlaying==TRUE?"是":"否"?>
+                    <span id="fullName"><?php if(!empty($player))echo $player->fullName;?></span>
+                    钱包：
+                    <span id="wallet"><?php echo $player->wallet?></span>
+                    在玩：
+                    <span id="isPlaying"><?php echo $player->isPlaying==TRUE?"是":"否"?></span>
                 </div>
             </div>
-            <?php } ?>
+
             <!--放扑克的位置-->
             <div id="pokersPlace">
 
@@ -67,6 +66,7 @@
         <div id="playerArea">
             <input type="button" value="进场 entryPlace" class="normalButton" onclick="entryPlace()">
             <input type="button" value="登录 login" class="normalButton" onclick="login()">
+            <input type="button" value="退出登录" class="normalButton" onclick="logout()">
             <input type="button" value="坐下" class="normalButton">
             <input type="button" value="下注" class="normalButton" onclick="bet()">
             <input type="button" value="完成下注" class="normalButton" onclick="finishBet()">
@@ -163,6 +163,8 @@
         $("#testArea .pokerCard").click(function(){
             testPushPokerOnDesk(this);
         });
+        //尝试读取状态
+        statusReport();
     });
 
     /**放置扑克到桌面上**/
@@ -193,11 +195,21 @@
 
     /**点击登录**/
     function login(){
-        var fullname=prompt("请输入您的姓名","user1");
+        var fullname=prompt("请输入您的姓名","user2");
 
         //向服务器发送请求
         $.post("/index.php/Texas/login",{"fullname":fullname},function(result){
-            $(checkResult).text(result);
+           if(result.status == "ok"){
+                statusReport();
+           }
+        },"json");
+    }
+
+    /** 退出登录 **/
+    function logout(){
+        //向服务器发送请求
+        $.post("/index.php/Texas/logout",null,function(){
+            location.reload();
         },"text");
     }
 
@@ -221,6 +233,60 @@
                 var poker = playersPoker[i];
                 $("#myDesk").append('<input type="button" value="'+ poker.name +'" tag="'+ poker.num +'" class="pokerCard">');
             }
+
+        },"json");
+    }
+
+    /** 获取状态设置游戏场景 **/
+    function statusReport(){
+
+        //向服务器发送请求
+        $.post("/index.php/Texas/statusReport/false/true",null,function(result){
+            var game = result.game;
+            /* 场地信息类 */
+            $("#placeId").html(game.placeId);
+            $("#sceneId").html(game.sceneId);
+            $("#bettingRounds").html(game.bettingRounds);
+            $("#jackpot").html(game.jackpot);
+            /* 游戏信息类 */
+            //载入桌面公共牌
+            var board =  result.game.board;
+            for(var i=0;i<board.length;i++){
+                var tag = board[i];
+                var poker = $(".pokerCard[tag='"+ tag +"']").clone();
+                $("#pokersPlace").append(poker);
+                //加到桌面上的扑克数组
+                deskPokers.push(tag);
+            }
+
+            //载入我的底牌
+            var playerPoker =  result.game.playerPoker;
+            for(var i=0;i<playerPoker.length;i++){
+                var pokerCard = playerPoker[i];
+                var pokerElement = $(".pokerCard[tag='"+ pokerCard.num +"']").clone();
+                $("#myDesk").append(pokerElement);
+
+            }
+
+            //载入电脑的底牌
+            var computerPoker =  result.game.computerPoker;
+            for(var i=0;i<computerPoker.length;i++){
+                var pokerCard = computerPoker[i];
+                var pokerElement = $(".pokerCard[tag='"+ pokerCard.num +"']").clone();
+                $("#computerDesk").append(pokerElement);
+            }
+
+            /* 玩家信息 */
+            $("#fullName").html(game.player.fullName);
+            $("#wallet").html(game.player.wallet);
+            if(game.player.isPlaying == true){
+                $("#isPlaying").html("是");
+            }else{
+                $("#isPlaying").html("否");
+            }
+
+
+
 
         },"json");
     }
@@ -290,6 +356,10 @@
         //向服务器发送请求
         $.post("/index.php/Texas/finishBet",null,function(result){
             $(checkResult).text(result);
+
+            //刷新状态
+            //尝试读取状态
+            statusReport();
         },"json");
     }
 
