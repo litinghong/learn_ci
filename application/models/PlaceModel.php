@@ -12,7 +12,7 @@ class PlaceModel extends CI_Model{
     /**
      * @var int 场地ID
      */
-    public $placeId;
+    public $placeId = 0;
 
     /**
      * @var PlayerModel 当前玩家
@@ -22,17 +22,17 @@ class PlaceModel extends CI_Model{
     /**
      * @var array 当前场地中的其它玩家
      */
-    public $players;
+    public $players = array();
 
     /**
      * @var int 当前场地中的玩家人数
      */
-    public $playersCount;
+    public $playersCount = 0;
 
     /**
      * @var array 围观中的玩家
      */
-    public $players_hold;
+    public $players_hold = array();
 
     /**
      * @var array 当前牌局玩家下注信息
@@ -43,37 +43,37 @@ class PlaceModel extends CI_Model{
     /**
      * @var int 场地开设时间
      */
-    public $start_dateline;
+    public $start_dateline = 0;
 
     /**
      * @var int 场地关闭时间
      */
-    public $end_dateline;
+    public $end_dateline = 0;
 
     /**
      * @var int 最大允许参加游戏的人数
      */
-    public $maxPlayer;
+    public $maxPlayer = 0;
 
     /**
      * @var int 最少开局人数
      */
-    public $minPlayer;
+    public $minPlayer = 0;
 
     /**
      * @var int 场地可用状态 1=可用 0=不可用
      */
-    public $placeStatus;
+    public $placeStatus = 0;
 
     /**
      * @var int  场次状态 0=未开始 1=进行中 2=已结束
      */
-    public $sceneStatus;
+    public $sceneStatus = 0;
 
     /**
      * @var int 当前场次号
      */
-    public $sceneId;
+    public $sceneId = 0;
 
 
     function __construct()
@@ -162,6 +162,8 @@ class PlaceModel extends CI_Model{
             $this->sceneId =  $row["sceneId"];
 
             //从场地表中读取所有玩家的id号，并转换为玩家对象，存入场地的玩家数组中
+            //MARK 由于采用单机游戏模式，不需要从数据表中读取玩家了
+            /*
             $playerIds = array_diff(explode(",",$row["players"]),array(""));
             foreach($playerIds as $playerId){
                 $otherPlayer =  $this->currentPlayer->get_player($playerId);
@@ -169,6 +171,7 @@ class PlaceModel extends CI_Model{
                     $this->players[$playerId] = $otherPlayer;
                 }
             }
+            */
 
             //添加玩家对象到数组
             if(!in_array($this->currentPlayer,$this->players)){
@@ -176,10 +179,9 @@ class PlaceModel extends CI_Model{
             }
 
             //添加一个电脑玩家到数组中
-            if(!in_array("1",$playerIds)){
-                $computerPlayer =  $this->currentPlayer->get_player(1);
-                $this->players[] = $computerPlayer;
-            }
+            $computerPlayer =  $this->currentPlayer->get_player(1);
+            $this->players[] = $computerPlayer;
+
 
             //添加玩家id号到数组
             $playerIds = array_keys($this->players);

@@ -93,13 +93,18 @@ class Texas extends CI_Controller {
 
     function __destruct()
     {
+        //如果玩家处于登录状态，则保存场地、玩家、游戏信息，否则清除它们
+        if($this->PlayerModel->isLogin){
+            //保存场地信息
+            $this->PlaceModel->savePlace();
+            //保存玩家信息
+            $this->PlayerModel->savePlayer();
+            //保存游戏信息
+            $this->GameModel->saveGame();
+        }else{
+            $this->cache->clean();
+        }
 
-        //保存场地信息
-        $this->PlaceModel->savePlace();
-        //保存玩家信息
-        $this->PlayerModel->savePlayer();
-        //保存游戏信息
-        $this->GameModel->saveGame();
 
         //输出游戏信息
         //var_dump( $this->statusReport());
@@ -111,8 +116,8 @@ class Texas extends CI_Controller {
      * 注意：给调试用的
      */
     public function cleanGame(){
-        $this->cache->clean();
-        $this->session->sess_destroy();
+        $this->session->set_userdata('playerId',null);
+        $this->PlayerModel->isLogin = false;
     }
 
 
@@ -207,7 +212,7 @@ class Texas extends CI_Controller {
      */
     public function newDeal(){
         $this->GameModel->newGame();
-
+        $this->processResult("true");
     }
 
     /**

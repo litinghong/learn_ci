@@ -38,6 +38,11 @@ class PlayerModel extends CI_Model{
      */
     public $isPlaying = false;
 
+    /**
+     * @var bool 是否登录状态
+     */
+    public $isLogin = false;
+
 
     function __construct()
     {
@@ -63,6 +68,7 @@ class PlayerModel extends CI_Model{
                 $this->currentPlaceId = $playerInfo->currentPlaceId;
                 $this->currentSceneId = $playerInfo->currentSceneId;
                 $this->isPlaying = $playerInfo->isPlaying;
+                $this->isLogin = $playerInfo->isLogin;
 
                 return TRUE;
             }
@@ -87,6 +93,7 @@ class PlayerModel extends CI_Model{
             $this->currentPlaceId = 0;
             $this->currentSceneId = 0;
             $this->isPlaying = FALSE;
+            $this->isLogin = TRUE;
 
             return TRUE;
         }
@@ -99,6 +106,8 @@ class PlayerModel extends CI_Model{
     public function savePlayer(){
         //缓存用户登录信息
         $this->cache->save("player_".$this->playerId,$this,3600);
+
+        //TODO 存入数据库
     }
 
 
@@ -133,6 +142,11 @@ class PlayerModel extends CI_Model{
                 return $newPlayerModel;
             }
         }
+
+    }
+
+    public function receiveBonus($money){
+        $this->wallet += $money;
 
     }
 }

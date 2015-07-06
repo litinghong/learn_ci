@@ -14,7 +14,7 @@ class GameModel extends CI_Model{
      */
     private $place;
 
-    //当前押注圈 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈 5=游戏结束
+    //当前押注圈 0=未开始 1= 底牌圈 2=底牌圈已下注 3=翻牌圈 4=翻牌圈已下注 5=转牌圈 6=转牌圈已下注 7=河牌圈 8=河牌圈已下注 9=显示结果和发奖金 10=游戏结束
     public $bettingRounds =0;
 
     /**
@@ -47,6 +47,16 @@ class GameModel extends CI_Model{
      */
     public $betLog = array();
 
+    /**
+     * @var array 弃牌的玩家ID
+     */
+    public $foldPlayer = array();
+
+    /**
+     * @var int 当前游戏赢家获得的奖金数量
+     */
+    public $winnerBonus = 0;
+
     function __construct()
     {
         parent::__construct();
@@ -72,6 +82,8 @@ class GameModel extends CI_Model{
                 $this->bankerPoker = $gameInfo->bankerPoker;
                 $this->board = $gameInfo->board;
                 $this->playersPoker = $gameInfo->playersPoker;
+                $this->betLog = $gameInfo->betLog;
+                $this->winnerBonus = $gameInfo->winnerBonus;
             }
 
             //如果可进行游戏则马上开始
@@ -109,6 +121,14 @@ class GameModel extends CI_Model{
      * 开始新的游戏
      */
     function newGame(){
+        //清理奖池
+        $this->jackpot = 0;
+
+        //清理桌面（公共牌和玩家牌）
+        $this->bankerPoker = array();
+        $this->playersPoker = array();
+        $this->board = array();
+
         //生成新的扑克牌（4 x 13 的二维数组）
         /**
          * 采用二进制位来表示牌面和花色
@@ -162,6 +182,8 @@ class GameModel extends CI_Model{
                 $this->playersPoker[$player->playerId][] = $pickPoker;
             }
         }
+        //设置游戏进入底牌圈
+        $this->bettingRounds = 1;
     }
 
     /**
@@ -171,31 +193,58 @@ class GameModel extends CI_Model{
      * @throws Exception
      */
     public function bet(PlayerModel $playerModel,$money){
-        //检测用户钱包够不够钱
-        if($playerModel->wallet < $money){
-            throw new Exception("钱不够了");
+        //检测是否可下注 // 0=未开始 1= 底牌圈 2=底牌圈已下注 3=翻牌圈 4=翻牌圈已下注 5=转牌圈 6=转牌圈已下注 7=河牌圈 8=河牌圈已下注 9=显示结果和发奖金 10=游戏结束
+        if($this->bettingRounds === 1 || $this->bettingRounds === 3 || $this->bettingRounds === 5 || $this->bettingRounds === 7){
+            //检测用户钱包够不够钱
+            if($playerModel->wallet < $money){
+                throw new Exception("钱不够了");
+            }
+
+            //将钱扣掉
+            $playerModel->wallet -= $money;     //TODO 直接存入数据库
+
+            //将钱放入押注历史(以押注圈为主键)
+            $this->betLog[$this->bettingRounds] = $money;
+
+            //将钱放入奖池
+            $this->jackpot += $money;
+
+            //押注后推到已下注状态
+            $this->bettingRounds += 1;
+
+        }else{
+            throw new Exception("现在不能下注");
         }
-
-        //将钱扣掉
-        $playerModel->wallet -= $money;     //TODO 直接存入数据库
-
-        //将钱放入押注历史(以押注圈为主键)
-        $this->betLog[$this->bettingRounds] = $money;
-
-        //将钱放入奖池
-        $this->jackpot += $money;
     }
 
     /**
      * 完成下注
      */
     public function finishBet(){
-        //如果还有下一圈，推到下一圈
-        if($this->bettingRounds < 4) {
-            $this->bettingRounds++;
-        }
 
         return $this->sendPoker();
+    }
+
+    /**
+     * 电脑玩家检测是否需要弃牌
+     * TODO
+     */
+    private function foldCheck(){
+        //添加电脑玩家的牌
+        foreach($this->playersPoker[1] as $poker){
+            $computerPokers[] = $poker["num"];
+        }
+
+        //附加上桌面公共牌
+        foreach($this->board as $pokerNum){
+            $playerPokers[] = $pokerNum;
+            $computerPokers[] = $pokerNum;
+        }
+
+        //检测电脑玩家的牌
+        $computerResult =  $this->testBordPoker($computerPokers);
+
+
     }
 
     /**
@@ -203,16 +252,21 @@ class GameModel extends CI_Model{
      * @return array|void
      */
     private function sendPoker(){
-        // 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈
+        // 0=未开始 1= 底牌圈 2=底牌圈已下注 3=翻牌圈 4=翻牌圈已下注 5=转牌圈 6=转牌圈已下注 7=河牌圈 8=河牌圈已下注 9=显示结果和发奖金 10=游戏结束
         switch($this->bettingRounds){
             case 2:
-                return $this->sendPublicPoker_one();
-                break;
-            case 3:
-                return $this->sendPublicPoker_two();
+                $this->sendPublicPoker_one();    //如果底牌圈已下注，发桌面三张公牌，并进入翻牌圈（3）
+                //TODO 公牌出来后电脑玩家决定是否弃牌
+                return $this->board;
                 break;
             case 4:
-                return $this->sendPublicPoker_tree();
+                return $this->sendPublicPoker_two();    //如果翻牌圈已下注，发桌面第四张公牌，并进入转翻牌圈（5）
+                break;
+            case 6:
+                return $this->sendPublicPoker_tree();   //如果转牌圈已下注，发桌面第五张公牌，并进入转翻牌圈（7）
+                break;
+            case 8:
+                $this->showPKResult();                   //显示结果和发奖金
                 break;
             default:
                 return array();
@@ -231,6 +285,9 @@ class GameModel extends CI_Model{
             $this->board[] = $poker;
         }
 
+        //发牌后进入翻牌圈
+        $this->bettingRounds = 3;
+
         //返回公牌
         return $this->board;
     }
@@ -242,6 +299,9 @@ class GameModel extends CI_Model{
         //从庄家用中抽出一张
         $poker = array_pop($this->bankerPoker);
         $this->board[] = $poker;
+
+        //发牌后进入转牌圈
+        $this->bettingRounds = 5;
 
         //返回公牌
         return $this->board;
@@ -255,14 +315,25 @@ class GameModel extends CI_Model{
         $poker = array_pop($this->bankerPoker);
         $this->board[] = $poker;
 
+        //发牌后进入河牌圈
+        $this->bettingRounds = 7;
+
         //返回公牌
         return $this->board;
     }
 
+    /**
+     * E 结束一轮游戏
+     */
+    private function gameOver(){
+        //重设游戏圈
+        $this->bettingRounds = 10;
+    }
+
 
     /**
-     * 检测所有玩家手上的牌
-     * 以及比较结果
+     * 检测所有玩家手上的牌以及比较结果
+     * 如果当前局处于游戏结束时，根据结果对玩家进行奖罚
      */
     public function showPKResult(){
         error_reporting(0);
@@ -292,15 +363,55 @@ class GameModel extends CI_Model{
         $playerResult =  $this->testBordPoker($playerPokers);
 
         //比较两个的pk结果
-        $winner = ($playerResult["result"] == $computerResult["result"])?"both":($playerResult["result"] > $computerResult["result"] ? "player":"computer");
+        $winner = "";
+        //如果两个的牌型一样
+        if($playerResult["result"] == $computerResult["result"]){
+            //比较对子或三条中最大的
+            if($playerResult["maxPair"] == $computerResult["maxPair"]){
+                //如果相等，比较牌点
+                if($playerResult["maxPoker"] == $computerResult["maxPoker"]){
+                    $winner = "both";
+                }elseif($playerResult["maxPoker"] > $computerResult["maxPoker"]){
+                    $winner = "player";
+                }else{
+                    $winner = "computer";
+                }
+            }elseif($playerResult["maxPair"] > $computerResult["maxPair"]){
+                $winner = "player";
+            }else{
+                $winner = "computer";
+            }
+        }elseif($playerResult["result"] > $computerResult["result"]){
+            $winner = "player";
+        }else{
+            $winner = "computer";
+        }
+
+
+        //如果当前局处于游戏结束时，根据结果对玩家进行奖罚
+        if($this->bettingRounds == 8){
+            if($winner === "player"){
+                if($this->jackpot > 0){
+                    $money = $this->jackpot * 2;
+                    $this->winnerBonus = $money;
+                    $this->place->currentPlayer->receiveBonus($money);
+                }
+            }
+
+            $this->gameOver();
+        }
+
         $returnArray = array(
+            "bettingRounds" => $this->bettingRounds,
             "playerResult" => $playerResult,
             "computerResult" => $computerResult,
-            "winner" => $winner
+            "winner" => $winner,
+            "bonus" => $this->winnerBonus
         );
 
         return $returnArray;
     }
+
 
     /**
      * 将数值转换为牌面描述
@@ -372,6 +483,7 @@ class GameModel extends CI_Model{
             return array(
                 "result" => -1,
                 "message" => "牌数量不足",
+                "confirm" => array(),
                 "error" => 1
             );
         }
@@ -382,6 +494,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 10,
                 "message" => "同花大顺",
+                "confirms" => $isRoyalFlush["confirm"],
+                "maxPoker"=>$isRoyalFlush["maxPoker"],
+                "maxPair"=>$isRoyalFlush["maxPair"],
                 "error" => 0
             );
         }
@@ -392,6 +507,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 9,
                 "message" => "同花顺",
+                "confirms" => $isStraightFlush["confirm"],
+                "maxPoker"=>$isStraightFlush["maxPoker"],
+                "maxPair"=>$isStraightFlush["maxPair"],
                 "error" => 0
             );
         }
@@ -402,6 +520,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 8,
                 "message" => "四条",
+                "confirms" => $isFourOfaKind["confirm"],
+                "maxPoker"=>$isFourOfaKind["maxPoker"],
+                "maxPair"=>$isFourOfaKind["maxPair"],
                 "error" => 0
             );
         }
@@ -412,6 +533,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 7,
                 "message" => "满堂红",
+                "confirms" => $isFullHouse["confirm"],
+                "maxPoker"=>$isFullHouse["maxPoker"],
+                "maxPair"=>$isFullHouse["maxPair"],
                 "error" => 0
             );
 
@@ -423,6 +547,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 6,
                 "message" => "同花",
+                "confirms" => $isFlush["confirm"],
+                "maxPoker"=>$isFlush["maxPoker"],
+                "maxPair"=>$isFlush["maxPair"],
                 "error" => 0
             );
         }
@@ -433,6 +560,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 5,
                 "message" => "顺子",
+                "confirms" => $isStraight["confirm"],
+                "maxPoker"=>$isStraight["maxPoker"],
+                "maxPair"=>$isStraight["maxPair"],
                 "error" => 0
             );
         }
@@ -443,6 +573,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 4,
                 "message" => "三条",
+                "confirms" => $isThreeOfaKind["confirm"],
+                "maxPoker"=>$isThreeOfaKind["maxPoker"],
+                "maxPair"=>$isThreeOfaKind["maxPair"],
                 "error" => 0
             );
 
@@ -454,6 +587,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 3,
                 "message" => "两对",
+                "confirms" => $isTwoPairs["confirm"],
+                "maxPoker"=>$isTwoPairs["maxPoker"],
+                "maxPair"=>$isTwoPairs["maxPair"],
                 "error" => 0
             );
         }
@@ -464,6 +600,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 2,
                 "message" => "一对",
+                "confirms" => $isOnePair["confirm"],
+                "maxPoker"=>$isOnePair["maxPoker"],
+                "maxPair"=>$isOnePair["maxPair"],
                 "error" => 0
             );
 
@@ -475,6 +614,9 @@ class GameModel extends CI_Model{
             return array(
                 "result" => 1,
                 "message" => "高牌",
+                "confirms" => $isHighCard["confirm"],
+                "maxPoker"=>$isHighCard["maxPoker"],
+                "maxPair"=>$isHighCard["maxPair"],
                 "error" => 0
             );
         }
@@ -624,8 +766,18 @@ class GameModel extends CI_Model{
 
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //组合中最大的一张牌（用于在对方也是同花顺相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
+
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -662,9 +814,24 @@ class GameModel extends CI_Model{
             }
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //四条中最大的点数（用于在对方也是四条的情况下比牌）
+            $pairs = $confirms;
+            rsort($pairs);
+            $maxPair = $pairs[0];
+
+            //组合中最大的一张牌（用于在对方三条相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -707,11 +874,27 @@ class GameModel extends CI_Model{
             }
         }
 
+        //合并
+        $confirms = array_merge($confirms3 ,$confirms2);
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //满堂红中最大的三条点数（用于在对方也是三条的情况下比牌）
+            $pairs = $confirms3;
+            rsort($pairs);
+            $maxPair = $pairs[0];
+
+            //组合中最大的一张牌（用于在对方三条相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
 
         //返回
         $returnArray = array(
-            "confirms"=>array_merge($confirms3 ,$confirms2),
+            "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -752,9 +935,20 @@ class GameModel extends CI_Model{
             }
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //组合中最大的一张牌（用于在对方也是同花的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
+
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -818,9 +1012,19 @@ class GameModel extends CI_Model{
 
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //组合中最大的一张牌（用于在对方顺子相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -858,9 +1062,24 @@ class GameModel extends CI_Model{
             }
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //最大的三条点数（用于在对方也是三条的情况下比牌）
+            $pairs = $confirms;
+            rsort($pairs);
+            $maxPair = $pairs[0];
+
+            //组合中最大的一张牌（用于在对方三条相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+        }
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -899,9 +1118,25 @@ class GameModel extends CI_Model{
             }
         }
 
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //最大的对子点数（用于在对方也是对子的情况下比牌）
+            $pairs = $confirms;
+            rsort($pairs);
+            $maxPair = $pairs[0];
+
+            //组合中最大的一张牌（用于在对方对子相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+
+        }
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -938,9 +1173,27 @@ class GameModel extends CI_Model{
             }
         }
 
+
+        $maxPoker = null;
+        $maxPair = null;
+        if($result == true){
+            //最大的对子点数（用于在对方也是对子的情况下比牌）
+            $pairs = $confirms;
+            rsort($pairs);
+            $maxPair = $pairs[0];
+
+            //组合中最大的一张牌（用于在对方对子相同的情况下比牌）
+            rsort($pokers);
+            $maxPoker = $pokers[0];
+
+        }
+
+
         //返回
         $returnArray = array(
             "confirms"=>$confirms,
+            "maxPoker"=>$maxPoker,
+            "maxPair"=>$maxPair,
             "result" => $result
         );
         //echo json_encode($returnArray);
@@ -959,11 +1212,22 @@ class GameModel extends CI_Model{
         //TODO 测试
         //$pokers=array(140,18,26,27,33,38,40);
         sort($pokers);
-        $maxPoker = array_pop($pokers);
+        //选择五张最大的
+        $confirms = array();
+        $i=0;
+        foreach($pokers as $poker){
+            if($i < 5){
+                $confirms[] = $poker;
+                $i++;
+            }
+        }
+        $maxPoker = array_pop($pokers); // 高牌中最大的一张
 
         //返回
         $returnArray = array(
-            "confirms"=>$maxPoker,
+            "confirms"=>$confirms,
+            "maxPair"=>$maxPoker,
+            "maxPoker"=>$maxPoker,
             "result" => true
         );
         //echo json_encode($returnArray);

@@ -40,7 +40,7 @@
                 <ul>
                     <li >当前场：<span id="placeId"><?php echo $placeId;?></span></li>
                     <li >当前次：<span id="sceneId"><?php echo $sceneId;?></span></li>
-                    <li >当前押注圈（ 0=未开始 1= 底牌圈 2=翻牌圈 3=转牌圈 4=河牌圈）：<span id="bettingRounds"><?php echo $bettingRounds;?></span></li>
+                    <li >当前押注圈（0=未开始 1= 底牌圈 2=底牌圈已下注 3=翻牌圈 4=翻牌圈已下注 5=转牌圈 6=转牌圈已下注 7=河牌圈 8=河牌圈已下注 9=显示结果和发奖金 10=游戏结束）：<span id="bettingRounds"><?php echo $bettingRounds;?></span></li>
                     <li >当前奖池：<span id="jackpot"><?php echo $jackpot;?></span></li>
                 </ul>
                 <div>
@@ -81,6 +81,7 @@
         <!--测试区域-->
         <div id="testArea" style="display: none">
             <div id="poker1" class="pokerRow">
+                <input type="button" value="♦1" tag="17" class="pokerCard">
                 <input type="button" value="♦2" tag="18" class="pokerCard">
                 <input type="button" value="♦3" tag="19" class="pokerCard">
                 <input type="button" value="♦4" tag="20" class="pokerCard">
@@ -97,6 +98,7 @@
             </div>
             <div id="poker2" class="pokerRow">
 
+                <input type="button" value="♣1" tag="33" class="pokerCard">
                 <input type="button" value="♣2" tag="34" class="pokerCard">
                 <input type="button" value="♣3" tag="35" class="pokerCard">
                 <input type="button" value="♣4" tag="36" class="pokerCard">
@@ -112,6 +114,7 @@
                 <input type="button" value="♣A" tag="46" class="pokerCard">
             </div>
             <div id="poker3" class="pokerRow">
+                <input type="button" value="♥1" tag="65" class="pokerCard">
                 <input type="button" value="♥2" tag="66" class="pokerCard">
                 <input type="button" value="♥3" tag="67" class="pokerCard">
                 <input type="button" value="♥4" tag="68" class="pokerCard">
@@ -127,6 +130,7 @@
                 <input type="button" value="♥A" tag="78" class="pokerCard">
             </div>
             <div id="poke4" class="pokerRow">
+                <input type="button" value="♠1" tag="129" class="pokerCard">
                 <input type="button" value="♠2" tag="130" class="pokerCard">
                 <input type="button" value="♠3" tag="131" class="pokerCard">
                 <input type="button" value="♠4" tag="132" class="pokerCard">
@@ -147,6 +151,11 @@
         <div id="myPokers" class="pokerRow">
             <div>我的底牌</div>
             <div id="myDesk"></div>
+        </div>
+        <!--游戏结果-->
+        <div id="result">
+            <div>游戏结果</div>
+            <div id="resultLabel"></div>
         </div>
     </form>
 </body>
@@ -226,13 +235,7 @@
     function newDeal(){
         //向服务器发送请求
         $.post("/index.php/Texas/newDeal",null,function(result) {
-            //TODO 检测服务器返回是否异常
-            var playersPoker  = result.game.playersPoker;
-
-            for(var i = 0;i<playersPoker.length;i++){
-                var poker = playersPoker[i];
-                $("#myDesk").append('<input type="button" value="'+ poker.name +'" tag="'+ poker.num +'" class="pokerCard">');
-            }
+           window.location.reload();
 
         },"json");
     }
@@ -250,6 +253,7 @@
             $("#jackpot").html(game.jackpot);
             /* 游戏信息类 */
             //载入桌面公共牌
+            $("#pokersPlace").empty();
             var board =  result.game.board;
             for(var i=0;i<board.length;i++){
                 var tag = board[i];
@@ -260,6 +264,7 @@
             }
 
             //载入我的底牌
+            $("#myDesk").empty();
             var playerPoker =  result.game.playerPoker;
             for(var i=0;i<playerPoker.length;i++){
                 var pokerCard = playerPoker[i];
@@ -269,6 +274,7 @@
             }
 
             //载入电脑的底牌
+            $("#computerDesk").empty();
             var computerPoker =  result.game.computerPoker;
             for(var i=0;i<computerPoker.length;i++){
                 var pokerCard = computerPoker[i];
@@ -285,14 +291,53 @@
                 $("#isPlaying").html("否");
             }
 
+            //显示游戏结果
+            gameResult();
 
 
+        },"json");
+    }
+
+    /** 显示游戏结果 **/
+    function gameResult(){
+        $.post("/index.php/Texas/testBordPoker",null,function(result){
+            var game = result.game;
+            var resultText = "";
+            //玩家
+            if(game.playerResult.error == 0){
+                resultText += "玩家：" + game.playerResult.message +"<br/>";
+            }
+            //电脑
+            if(game.computerResult.error == 0){
+                resultText += "电脑：" + game.computerResult.message +"<br/>";
+            }
+
+            //结果
+            if(game.playerResult.error == 0 && game.computerResult.error == 0){
+                resultText += "PK结果：" + game.winner;
+            }
+
+            //奖金(在9=显示结果和发奖金 10=游戏结束 时显示)
+            if(game.bettingRounds >=9){
+                if(game.winner == "player"){
+                    resultText += "您获得了" + game.bonus +"元奖金";
+                }else if(game.winner == "computer"){
+                    resultText += "电脑获得了" + game.bonus +"元奖金";
+                }else{
+                    resultText ="平局";
+                }
+
+            }
+
+            //显示
+            $("#resultLabel").html(resultText);
 
         },"json");
     }
 
     /** 载入桌面公共牌 **/
     function loadBoard(){
+        $("#pokersPlace").empty();
         //向服务器发送请求
         $.post("/index.php/Texas/statusReport/board/true",null,function(result){
             var board =  result.game.board;
