@@ -28,10 +28,8 @@
     <form name="form1" action="/index.php/Texas" method="post" >
         <div id="bankerArea">
             庄家操作：
-            <input type="button" value="开始新游戏" class="normalButton" onclick="newDeal();">
-            <input type="button" value="发牌" class="normalButton">
+
             <input type="button" value="测试桌上牌面" class="normalButton" onclick="testBordPoker()">
-            <input type="button" value="清空桌面" class="normalButton" onclick="testEmptyBord()">
         </div>
         <div id="board">
             <!--场景信息-->
@@ -64,12 +62,13 @@
 
         </div>
         <div id="playerArea">
-            <input type="button" value="进场 entryPlace" class="normalButton" onclick="entryPlace()">
+            <input type="button" value="开始新游戏" class="normalButton" onclick="newDeal();">
             <input type="button" value="登录 login" class="normalButton" onclick="login()">
             <input type="button" value="退出登录" class="normalButton" onclick="logout()">
-            <input type="button" value="坐下" class="normalButton">
+            <input type="button" value="弃牌" class="normalButton">
             <input type="button" value="下注" class="normalButton" onclick="bet()">
             <input type="button" value="完成下注" class="normalButton" onclick="finishBet()">
+
             <input type="button" value="刷新公共牌" class="normalButton" onclick="loadBoard()">
             <input type="button" value="刷新我的底牌" class="normalButton" onclick="loadMyPokers()">
         </div>
@@ -196,11 +195,6 @@
         },"text");
     }
 
-    /**清空桌面**/
-    function testEmptyBord(){
-        deskPokers = [];
-        $("#pokersPlace").empty();
-    }
 
     /**点击登录**/
     function login(){
@@ -222,14 +216,6 @@
         },"text");
     }
 
-    /**进场**/
-    function entryPlace(){
-        //向服务器发送请求
-        $.post("/index.php/Texas/entryPlace",null,function(result){
-            var statusReport = result.game;
-            console.log(statusReport);
-        },"json");
-    }
 
     /**点击手动开场 TODO 测试用**/
     function newDeal(){

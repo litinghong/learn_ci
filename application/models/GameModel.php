@@ -226,8 +226,15 @@ class GameModel extends CI_Model{
     }
 
     /**
+     * 玩家（包括电话）弃牌
+     */
+    public function playerFold(){
+
+    }
+
+    /**
      * 电脑玩家检测是否需要弃牌
-     * TODO
+     * @return bool 是否放弃 true=放弃
      */
     private function foldCheck(){
         //添加电脑玩家的牌
@@ -244,6 +251,26 @@ class GameModel extends CI_Model{
         //检测电脑玩家的牌
         $computerResult =  $this->testBordPoker($computerPokers);
 
+        //检测牌中是否有对子或以上
+        $hasPokerPair = false;
+        if($computerResult["result"] > 2){
+            $hasPokerPair = true;
+        }
+
+        //牌中是否有Q以上的
+        $hasPokerQ = false;
+        foreach($computerPokers as $poker){
+            if($poker & 15 > 12){
+                $hasPokerQ = true;
+            }
+        }
+
+        //是否放弃
+        if( ($hasPokerPair || $hasPokerQ) == false ){
+            return true;
+        }
+
+        return false;
 
     }
 
